@@ -1,0 +1,388 @@
+Hello Cloud Gurus,
+and welcome to this lesson on setting up HTTPS
+and a Route 53 Record.
+So in this lesson, we'll be providing a path
+for our user traffic to flow down
+and reach our Jenkins application.
+User traffic will first arrive at our public domain,
+which in our case will be hosted in Amazon Route 53 Service.
+If you're following along on your own,
+then you'll need to have a public domain
+to continue with the DNS part.
+However, if you're following along
+in A Cloud Guru's Cloud Playground AWS account,
+you'll be provided with a temporary public domain
+to work on this part.
+We need the public domain so that we can generate
+an SSL certificate for that domain
+to enable secure connection over HTTPS.
+The Route 53 domain has
+a publicly hosted zone attached to it,
+which will have an ALIAS record pointing to
+the fully qualified domain name
+of Application Load Balancer.
+This Application Load Balancer will have 2 listeners,
+one on port 80, and the other one on port 443.
+The listener on HTTP or port 80,
+will redirect all traffic to port 443,
+and on port 443, we will have an SSL certificate attached
+so that HTTPS traffic can terminate on the load balancer.
+This certificate will be provided
+by Amazon Certificate Manager Service also known as ACM.
+And again, this certificate will be attached to the listener
+which is listening on port 443.
+And finally, the load balancer through its target group,
+which contains the Jenkins Application Node
+or the Jenkins Master Node
+will route traffic to the application.
+This is in a nut shell what we'll be doing
+and writing the Terraform code for.
+We've already created
+an Application Load Balancer previously,
+and also set up a Jenkins EC2 instance.
+So we'll be modifying code
+for the Application Load Balancer in this lesson,
+to add an additional listener on port 443,
+generate the SSL certificate via ACM,
+and then tie it on everything with the DNS
+or Route 53 in our case.
+So without further ado,
+let's dive onto the Terraform controller
+and start working on the code for this.
+So I'm logged into the Terraform controller node.
+The very first thing we'll do
+is to fetch the publicly hosted domain name,
+in our case, that is provided through
+the Cloud Playground of A Cloud Guru.
+But if you have one available from your personal account,
+feel free to use that.
+The command for fetching the domain name remains
+the same regardless of whether you use it
+in your own AWS account
+or within the Cloud Playground account,
+as long as you're using AWS.
+The command is aws route53 list-hosted-zones.
+In the output under hosted zones,
+you'll be looking for the name, which ends with a dot,
+and we'll make sure that we copy this into our buffer,
+make sure that you're copying over the ending dot as well,
+that's important.
+Now that we have this copied over,
+let's clear the screen and create a new variable
+for holding this value.
+So we'll open up the file variables.tf,
+we'll go right to the end and add a new variable.
+We'll call this variable dns-name.
+The type of the variable will be string,
+and we'll give it the default value that we copied over.
+Make sure that you're copying over the ending dot
+because we'll be inserting this as a record set
+inside a publicly hosted zone,
+and that zone expects the record set to be ending in a dot.
+So we'll save and quit.
+And now we'll start working on the DNS part.
+In this lesson we'll be working across
+a couple of Terraform files.
+So we'll be switching between different files.
+The first file that we'll be creating is dns.tf,
+and you will be using the data source to copy over
+the details of the publicly configured hosted zone,
+the name for which we pass through the DNS name variable.
+So the code for that looks like this.
+We're using the data keyword to fetch
+the AWS Route 53 zone,
+and we're giving this variable the name dns.
+The only input that it requires apart from the region
+in which we want to execute this query,
+is the name that we set for the hosted zone,
+which is passed to the dns-name variable.
+We'll save and quit out of this file.
+And next start setting up our ACM configuration,
+which is the AWS Certificate Manager configuration.
+We'll create a file called acm.tf,
+and then create the resource for the ACM Certificate,
+the code for which looks like this.
+We are providing it the domain_name.
+We are appending the string Jenkins before the domain name
+and we're passing the Route 53 Hosted Zone
+that we got through the data resource query
+in the dns.tf file.
+We are also telling ACM that we'll be validating
+the ownership of this zone,
+which you passing to it using DNS,
+for which we'll be creating a couple of resources later on
+in this file.
+We're finally passing it a tag name of Jenkins-ACM.
+Before the Amazon Certificate Authority can issue
+a certificate for our site,
+AWS Certificate Manager must verify that we own
+or control all of the domain names that
+we have specified in our request
+via the domain_name parameter.
+ACM uses CNAME records to validate that we own
+or control a domain.
+When you choose a DNS validation,
+ACM provides a CNAME record to insert into your DMS database
+so that it can validate the ownership of the domain name.
+If you're using Route 53 as your DNS provider,
+then ACM provides the functionality of adding
+the validation CNAME record
+and validating the record for you.
+So I'd recommend using Route 53 for DNS in this course,
+as external DNS providers will require a manual step
+to validate the records outside of Terraform.
+Now we'll be copying over the resource for creating
+the validation record for ACM.
+So let's switch over to the dns.tf file,
+and quickly do that.
+So we'll save and quit.
+And open up the dns.tf file,
+and add the following code to it.
+Now this code is basically creating a record
+and we're just giving it the label
+of cert_validation.
+The attribute domain_validation_options
+which is provided to us through
+the aws_acm_certificate resource,
+is a set of domain validation properties
+which can be used to complete certificate validation
+and provides us value such as the validation record itself,
+the value which is resolved against the validation record
+and the type of the record, which in our case is CNAME.
+Because the domain validation options are presented
+as data type of set,
+and we cannot access data of type set by indexes,
+such as 0, 1, 2, or 3, like we can do in a list,
+we use a For loop to generate a list of data
+that we want to populate in our resource
+for AWS Route 53 Record.
+This For loop helps to iterate over the values
+inside the set, which is provided to this variable,
+domain_validation_options.
+The for_each expression
+is in a way similar to the count parameter.
+We use it to dynamically generate nested blocks
+within a Terraform resource.
+Hence our For loop which yields a list of properties
+for domain validation,
+populates it against an object provided by
+the for-each expression called each.
+Which is what we can then use right here
+to pass the actual values returned to the parameters
+and the resource.
+Doing a little recap of this
+because I know this can be a bit confusing,
+but we are iterating over the values returned by
+this attribute for the resource, aws_acm_certificate.
+And then we are passing those values using
+the each object provided to us by the for_each expression,
+and actually passing those values to the parameters required
+within this resource.
+Those values are passed by the each object,
+such as each.value.name, which is the name of the record,
+the list of record against that name,
+the time to live, and zone_id are static values,
+so we have sort of hard coded them here.
+And we're finally passing in the type of our record
+for the validation,
+which is CNAME and return to the for_each expression.
+So take some time to read up about for_each
+and for expressions as they were introduced
+in Terraform version 12 and onwards.
+So now that we have inserted a DNS validation record
+for our ACM certificate,
+let's move onto actually creating a resource
+back in the acm.tf file,
+which will now validate this record
+against the ACM Certificate that we created.
+And go back into the acm.tf file.
+And we'll add the following chunk of code to this file.
+So this resource is basically for validating
+the CNAME record that we inserted inside our hosted zone,
+and you'll notice the parameters will be
+the ARN of the certificate that we generated up here.
+We are again using the for_each parameter to get the values
+within the Route 53 record that recreated in the dns.tf file
+and then passing the fqdn
+of our Route 53 cert_validation resource
+that we created in dns.tf file
+into the validation_record_fqdns.
+We have to provide the index here,
+which is provided by each.key.
+The each object is again provided
+by the for_each expression.
+And now we are done the part of generating
+the SSL certificate.
+So we'll save and quit out of this file.
+And now go into the load balancer file
+that we created early in the course,
+and make some updates to our code
+for the Application Load Balancer.
+So we'll open up alb.tf.
+In previous lessons in the course, we created the lb,
+attached a target group to the alb,
+created a listener on port 80 and attached the target group
+to our Jenkins Master Node, which was in us-east-1.
+And now in this lesson, we'll be creating a listener
+on port 443, attaching the certificate
+that we generated to that listener,
+and also making sure that our port 80 listener
+instead of forwarding HTTP traffic
+to the Jenkins application or our web server
+in the sample scenario,
+it redirects it to the port 443,
+to make sure that the HTTPS termination occurs
+on the Application Load Balancer,
+and that our connection is secure.
+So we'll go ahead and make those changes now.
+The first change that we'll be making is
+to enable redirection on our port 80 listener.
+So we'll go down to the resource
+where we created our port 80 listener.
+This was our resource,
+and we'll be making a few changes to this.
+So now in the default action,
+instead of having the type forward, we want to redirect,
+therefore, we'll change it to the keyboard redirect.
+This will also mean that we'll need to tell it
+how to redirect the incoming requests on port 80.
+So we'll delete this line for target_group_arn,
+and add a new block for defining the redirection.
+In the redirection block,
+we'll be defining what port we'll be redirecting
+the traffic to once it hits port 80 on the load balancer.
+We'll also be defining the protocol
+that we are forwarding it to.
+And we'll also be defining the status code,
+which will be returned to the user once they hit port 80.
+These 2 values available for the status_code,
+which is either HTTP_301, or HTTP_302.
+In our case, we are using HTTP_301,
+because we want to tell the user
+that this is a permanent redirect
+and that's what 301 represents.
+So we are done modifying the port 80 listener,
+and now this will be redirecting anything which it receives
+on port 80 onto port 443 listener.
+Now let's go ahead
+and create the port 443 listener as well.
+So we'll give ourselves some space.
+So this is the chunk of code for creating
+the port 443 listener,
+and we'll modify the level of this resource
+so that we can distinguish between this listener
+and the port 80 listener.
+Let's go through the parameters in this resource.
+We're passing it the load_balancer_arn,
+we're passing it a pre-configured ssl_policy,
+which is defined by AWS.
+We're telling it to listen on port 443
+and allow HTTPS protocol.
+And this is the part where we are actually tying down
+the certificate that we have generated using ACM
+with this listener in our load balancer.
+So we're tying down the ARN of the certificate.
+We're also defining a default_action for dealing with
+the traffic that this port receives.
+And we're basically telling it to forward any traffic
+that it receives on port 443 to the target group
+in question, which is attached to the load balancer.
+So we are done with the load balancer part as well now.
+And there's one final piece to the puzzle.
+Now we have to basically tell our DNS
+or Route 53 in this case,
+to route traffic to the DNS name
+of our application load balancer,
+for which will lead to create a Route 53 record
+in our publicly hosted zone.
+So we'll save and quit out of this file.
+And open up the dns.tf file to add a chunk of code to it.
+We'll give ourselves some space.
+And here we're basically defining the zone_id,
+which we've gotten through the data resource query earlier
+in this file,
+we're passing it the name of the record,
+which we are using the join function to create.
+So we're passing it Jenkins. whatever domain name
+we got back from this query.
+We delegate that this is a type A record.
+And in our case this is a special type A record,
+known as an alias record,
+because you're basically telling Route 53
+to route any request which comes for this domain name
+onto the DNS name of our load balancer,
+which AWS defines as alias records.
+And in the alias block, we're basically passing it
+the DNS name of the load balancer,
+a special property which is defined with
+the load balancer known as zone_id,
+and we're telling it to evaluate the target health.
+So if DNS sees that requests going towards
+the load balancer are failing,
+it will start resolving this domain name
+against this load balancer,
+so that some other form of high-availability
+or automation can kick in and keep your website up.
+And with this, we're done making changes to enable HTTPS
+and creating a record for routing traffic
+from DNS to our Application Load Balancer.
+So let's save and quit,
+clear the screen, and run a terraform format.
+We'll clear the screen,
+and next step run terraform validate.
+Everything looks to be good.
+So we'll clear the screen and run a quick terraform plan.
+And notice that our resource count has increased gradually
+over the progress of the course,
+and now the resources are 31.
+So we'll clear the screen,
+and now apply all the code that we have modified.
+We'll allow it to go ahead
+and deploy all the infrastructure.
+So I'll speed up the video and get back
+when all the infrastructure has been deployed,
+so that we can test out our domain name
+and the HTTPS access using the domain name.
+So our terraform apply has successfully completed,
+and I just remembered that I forgot to put in an output
+for declaring the DNS name, which we're going to access.
+So we'll do that right now.
+And although we won't be running a terraform apply again,
+but we can still make the DNS name that we need to access
+to test out our infrastructure deployment.
+So for the outputs, we'll go into our outputs.tf
+and add the following chunk of code.
+This basically outputs the URL that we'll be outputting
+and accessing the FQDN attribute of this resource.
+So we'll save and quit.
+We can create our URL
+by just looking at the dns_name variable
+that we used.
+So we'll head into the variables.tf file,
+and copy over the default dns-name variable that we set.
+And this time we'll skip using the ending dot
+because now we're actually going to be testing this.
+So we'll save this up and remember
+that we abandoned a Jenkins infront of the string,
+so our actual URL would be jenkins.comcloudlab0929.info.
+So let's copy all of this and head onto our browser,
+and see what happens.
+And we have been taken to the test page
+of our sample Apache web server
+that we set up in the previous lesson
+for our Application Load Balancer.
+And notice this time we're actually accessing
+the test page using the domain name
+and sort of the DNS name of the Application Load Balancer.
+And additionally, we are also being shown that the website
+is secured by the certificate issued by Amazon's ACM.
+So we have a secured connection to our web server,
+and in the latest actions
+we'll be building Ansible Playbooks to customize
+the EC2 nodes to show us the Jenkins UI
+and serve this test page.
+Also if you're done experimenting and playing around
+with Terraform,
+go ahead and issue a terraform destroy
+to destroy all this infrastructure.
+Thank you for following along and going through this lesson.

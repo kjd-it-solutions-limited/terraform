@@ -1,0 +1,215 @@
+Hello, folks.
+In this lesson, we'll be looking at terraform output
+and terraform graph commands
+and also, 2 additional bonus commands
+which can be quite handy when working with Terraform.
+Terraform outputs are used
+for displaying certain resource values on CLI
+after running terraform apply command successfully.
+They're very useful in passing outputs
+from within child modules in Terraform
+back out to the root modules.
+And when using remote storage of state files,
+root modular ports can even be shared
+by other Terraform configs,
+enabling collaboration between distributed teams as well.
+Next up we've got the terraform graph command.
+Terraform graph command helps
+in providing a dependency image
+of an execution plan or configuration.
+It provides output in the DOT format,
+which can be visualized into actual images in formats
+such as, JPEG, PNG using a software like GraphViz.
+Next up, we've got our bonus commands.
+The first one is terraform console.
+Terraform console provides an interactive environment
+for testing Terraform expressions,
+as well as looking at details against resources
+in a Terraform state file.
+It is good for testing and experimenting
+with the interpolations in Terraform.
+And if the current state of the deployment is empty
+or not yet created,
+Terraform console can be used to test expression syntax
+and the built-in functions within Terraform,
+which can be super useful.
+Next up we've got the terraform state command.
+Terraform state command is basically
+for advanced state management of Terraform resources.
+Normally you wouldn't be using this command
+unless you forcefully wanted to remove
+a Terraform resource from the state file,
+which was causing unresolvable issues
+when creating or destroying resources.
+However, one of its sub commands,
+terraform state list, can be quite useful
+in seeing the current resources in state file,
+and then investigate them using terraform console command.
+Now, before we head to the demonstrations
+of these commands quickly,
+let's look at the output block.
+The output block starts with the output keyword
+and then we pass in an arbitrary label,
+such as db_password.
+We pass in the value,
+either through a variable or to a resource parameter.
+We, optionally, can pass a description
+to let the operator know what this output means.
+And we can also optionally set the sensitivity
+of the output value so that it is redacted.
+Now let's head over to the Terraform controller node,
+where I have already deployed
+a quick, little Terraform AWS deployment,
+and we're going to investigate the resource within it
+using the commands that we just found out about.
+So this deployment has already got a couple of output set,
+which we can see by executing the command, terraform output.
+And these were the outputs,
+which we set in the outputs.tf file.
+So let's have a look at that, as well.
+Let's copy over the label of this output.
+And we can even tone down to getting the specific value
+against an output.
+So let's clear this out
+and issue the command, terraform output.
+And then the label against the output,
+which would return to us
+the actual value against that output.
+Now, let's move on to looking
+at the terraform state command.
+In our case,
+we'll be using the terraform state list command,
+which is going to list all the resources
+which are being tracked by the Terraform state file.
+So currently we've got these resources being tracked
+in the Terraform state file,
+and to look at the details of one of these resources
+in Terraform using terraform console,
+let's copy with the name of this resource,
+which is pertaining to the VPC in us-east
+Clear the screen
+and issue the terraform console command.
+This is going to drop us inside the interactive console.
+On this console,
+if we were to paste down the name of the resource
+and hit Enter,
+it would give us back all the details
+that Terraform has against this resource.
+Now remember that this was filled out
+after a successful apply
+and when Terraform was able to create
+this resource successfully.
+We can also get specific parameter values
+against this resource instead of having to look
+at all the parameters within this resource.
+So let's go ahead and copy the same resource name,
+but this time we're going to pass it,
+the owner_id parameter,
+and only see the value of this parameter.
+So we'll paste this out.
+Hit Enter.
+And now we only see the account ID
+of the alias account owner
+instead of having to look at all the output.
+So this can be quite useful.
+Another useful feature of Terraform console
+is to test our functions,
+which are built-in, in Terraform.
+So let's look at the join function quickly.
+So once I hit Enter,
+we'll see the output of this join function,
+which under normal circumstances,
+I wouldn't be able to look at
+unless I actually did the terraform apply.
+So let's hit Enter
+and we're provided with a terraform.acg
+which is exactly what we expected from the join function.
+But you get the drift.
+You can test out a lot of other built-in functions
+and expressions using the terraform console command.
+Now let's quit out
+and look at terraform graph quickly.
+Terraform graph by default will output everything
+to the standard output.
+And remember that terraform graph outputs everything
+in DOT format.
+So we wouldn't be able to make sense of that at all.
+So what we'll do is that we'll issue the command,
+terraform graph for our deployment here,
+and we'll save the output using Linux redirection
+into a file called tf.dot.
+So now we've got the DOT format inside this tf.dot file.
+Let's open it up and look at it.
+So we notice that we can't make much sense
+of this DOT format,
+but what we'll do is we'll use the utility GraphViz
+to graph it out as a PNG file.
+And now let's use the GraphViz utility,
+but first we'll have to install it.
+I'm using CentOS 7 for this demonstration.
+So in my case,
+I'd be using the yum install command
+for installing GraphViz.
+But on the official resource download page for GraphViz,
+you can find many other ways to download it
+across a host of other OSs.
+So I'll go ahead and issue the yum install command,
+and we've installed the GraphViz command successfully.
+The binary which the GraphViz software
+provides for generating PNG out of DOT files
+is known as dot.
+And by default the dot command expects input
+from standard input,
+which means we'll be piping in the DOT file that we created
+into the dot command.
+So let's do that quickly.
+So remember that the name of our file was tf.dot.
+And we'll be using the Linux pipe
+to pipe the output of this command into dot command.
+And we'll be passing a couple of flags with us
+to let it know what format output we want.
+So we'll be using the -T flag to let it know
+that we want the output in PNG format
+and using the -o flag to let it know
+that we want the output saved in a file.
+We'll call the file tf.png.
+So once I hit Enter
+and look at the list of files inside our directory,
+I noticed that there's a tf.png file.
+Because this interface that we're using
+is not a graphical interface
+I've already downloaded this file onto my local machine
+and opened it up to have a look at it.
+So we'll go into the machine.
+And this is what the PNG file generated
+from the DOT format file looks like.
+Now, granted that this is a bit complex to look at,
+but that's only because we have not customized the DOT file
+or provided the GraphViz solver,
+any customization instructions to label things differently.
+But you can still make out the dependency connections
+between various resources.
+For example,
+our subnet resources require availability zones data
+before they can be created
+because subnet needs to be assigned
+to an availability zone.
+It's also showing to us
+the variables that we declared within the code,
+as well as outputs and other resources,
+for the network setup of this project.
+So this can come in quite handy
+if you just want a visual representation
+of what your Terraform deployment looks like
+and obviously you can customize it to your heart's content.
+In our case this is just a default output PNG file,
+which hasn't been modified at all.
+So in a nutshell we have seen some of the useful commands
+in Terraform, such as graph,
+output, state, and console,
+which can help in troubleshooting
+and investigating the resources from a better form,
+as well as mapping our Terraform deployment
+into an actual graph.
+Thank you for going through this lesson.
+Now if you've got time, join me in the next lesson.

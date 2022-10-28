@@ -1,0 +1,184 @@
+Welcome back Gurus.
+We'll continue building on the network setup
+of this project in this lesson
+and in this particular lesson,
+we'll be setting up the multi-region VPC peering
+and also setting up the routes
+so that the VPCs can communicate
+over the VPC peering connection.
+We'll continue from our previous setup,
+which was to set up a VPC, subnets,
+and deploy internet gateways within those VPCs.
+Additionally, we'll now be setting up
+a VPC peering connection and the appropriate routing
+in the route tables of the VPC
+so that the VPCs can communicate
+since they are across different regions.
+So let's jump onto our Terraform controller node
+to figure this out.
+We've already set up the networking part of VPC, subnets,
+and internet gateways in a previous lesson.
+So now, we'll continue to build on that.
+I'll cd into the project folder,
+and we'll open up the networks tortilla file
+to continue building on it.
+We'll go right to the end and give ourselves some space.
+The very first thing that we'll be creating
+will be a VPC peering connection request.
+This VPC peering connection request
+will be from the us-east-1 master region
+to the us-west-2 region where the worker instances
+will be spun up.
+Notice how we are creating this resource
+in the master region
+and it requires the following parameters in Terraform.
+The first one is the peer-vpc-id,
+which is the VPC that we spun up in us-west-2 region
+with the following resource.
+After that, we'll be giving you the VPC ID
+of the originating VPC,
+which is in us-east-1 with this resource,
+which is the region of the peer-vpc that is given here.
+After this, we'll be created being a resource
+for accepting the VPC peering connection.
+We're using the Terraform resource
+aws_vpc_peering connection accepter.
+And we're giving it the label accept_peering.
+We're grading this in the worker region
+and there's 2 values that we are passing it.
+The VPC peering connection ID
+from the previous resource that we just created
+and an auto accept option,
+which allows it to automatically accept the option since
+both the VPCs are owned by the same AWS account.
+However, if both VPCs were in different accounts,
+we could not have used auto accept.
+So this will complete the VPC peering connection,
+but this does not mean that the VPC peering connection
+has also updated the routing table
+so that both the VPCs can communicate.
+That part we'll need to do ourselves.
+So the next thing we'll do is to create the routing table
+with the appropriate routes.
+We're creating this route table in us-east-1 region,
+as you can ascertain by looking at the provider,
+we're passing at the VPC ID for which
+we want to attach this route to,
+and we're passing it to routes primarily.
+The first route is the route to the internet gateway
+that we just created before.
+The second route is towards the subnet of us-west-2,
+that has the IP range of 192.168.1.0/24.
+The only reason we're doing this is
+so that the incoming packers from this subnet
+from the other VPC can come into the VPC in us-east-1.
+We'll be doing the same in the other VPC's route as well.
+After this, we're adding a lifecycle block.
+The reason we're doing this is,
+because usually different resources have three steps
+in their lifecycles, creation, update, and deletion.
+However, we don't want any of the changes
+in either the internet gateway or the VPC peering connection
+to trigger updates to this routing table.
+Therefore we're ignoring all changes.
+So this only stops any updates
+from happening to this resource.
+However, this does not ignore the deletion.
+And finally, we're bouncing in the tag name.
+So we're giving it the name tag of Master-Region-RT.
+Next up we'll be modifying the route table
+or the master route table of our us-east-1 VPC.
+The reason we're doing that is because
+when we created our VPC in one of the previous lectures,
+it already created a default route for our VPC.
+And because we need to update that route,
+we'll need to update the main routing table for our VPC.
+So this resource, the aws_main-_route_table_association,
+we'll need the VPC ID
+as well as the route table ID that we want to attach to it.
+Although it looks like we're creating a new resource,
+but in essence, we're just replacing
+the already existing main route table
+with the one that we want.
+And we'll do the same on the other VPC as well,
+which is in us-west-2.
+Now we'll repeat the process of creating the route table
+for us-west-2 region's VPC.
+So I'll just paste in that chunk of code.
+And again, we're doing the same thing here,
+we're using the provider for region worker,
+which is us-west-2.
+We're passing in the VPC ID
+of the us-west-2 Oregon region's VPC.
+We're passing in the 2 routes.
+The first route attaches the VPC to its own internet gateway
+in the Oregon or us-west-2 region,
+and the second route table allows the traffic
+from the subnet of VPC 1 in the us-east-1 subnet 1
+and we pass in the VPC peering connection ID as well.
+And again, we use the lifecycle block
+to ignore any changes which happen during the lifetime
+of this resource.
+Next step we'll again,
+override the main route table of the VPC in us-west-2.
+Again, we're doing the same thing
+as we did with the us-east-1 route table.
+We are overriding the main route table of us-west-2
+and adding in our own route,
+which now contains the VPC peering connection
+and the IP range of the us-east-1 region.
+We will now save and quit, clear the screen,
+and just to be sure, we'll run terraform format,
+it's one of my favorite commands in Terraform,
+and next we'll run terraform validate.
+If everything goes right, you'll see the message
+after the terraform validate.
+Now let's run a terraform plan
+and it does run successfully.
+Our resources have grown from 7
+in the previous lecture to 13 now.
+We'll clear the screen and run terraform apply.
+Again we'll be prompted for the actual creation of resources
+we'll hit Enter and wait for the magic to happen.
+Terraform apply has run successfully.
+It's funny how everything is made to look so easy.
+We have created a lot of routes,
+done a lot of complex integration between the VPCs
+and routing tables so just to get a feel of it,
+I'd recommend going into your AWS account
+and actually looking at the resources that were created.
+In our case, we created subnets, VPCs, internet gateways,
+and then connected the different VPCs using VPC peering.
+So I'll head over to the AWS account
+on which we took all this action
+and see everything for real.
+So I'll head over to VPC
+and remember we are in the us-east-1 region,
+which is North Virginia
+and head over to peering connections
+and you'll see that we have an active VPC connection
+between our different regions,
+as we can tell by the CIDR ranges
+on the requester and acceptor columns.
+Now let's head over to the us-west-2 region
+and this way, if I had that we see the same VPC peer
+and verify that we see the same VPC peering connection
+on that end as well.
+And we are in us-west-2 which is Oregon,
+and we see the same peering connection being active
+over there as well.
+We'll also verify that the route table's connected
+to these VPC peering connections
+are the ones that we just implemented.
+So we'll click on one of the route tables,
+go in to routes,
+and we'll see that via the following routes.
+So this is the default route
+which was put into the route table on the creation VPC.
+The other one is the internet route that we just created.
+And the third one is the subnet range
+of the public subnet in us-east-1.
+So this completes the objectives of our current lesson.
+Thank you for following along and if you've got time,
+join me in the next lesson,
+we will be setting up subnet associations for our network.

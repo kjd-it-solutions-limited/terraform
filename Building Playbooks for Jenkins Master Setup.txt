@@ -1,0 +1,212 @@
+Hello, Cloud Gurus,
+and welcome to this lesson on building a playbook
+for our Jenkins master application setup.
+Now we're going to run through a quick summary of the
+steps we're going to be writing in the Ansible playbook.
+So wait for the demonstration at the end of this lesson.
+Let's go through what we're going to be building
+in the playbook.
+We're first going to install dependencies required
+for Jenkins application.
+We'll be using the yum module for this.
+The next step will be cloning over the files
+from a pre-configured Jenkins installation.
+This way we won't need to configure Jenkins from scratch,
+and of course, this helps with the automation too.
+We'll next set up Jenkins repository.
+We'll also download and install the repos GPG key.
+A default Jenkins application will be installed,
+and because by default, it can start up on install,
+we ensure that it is stopped for the moment.
+We'll delete all the default configuration files for Jenkins
+and copy over our cloned pre-configured files
+in their place.
+We'll restore the ownership of the copied over Jenkins files
+to the Jenkins user and restart Jenkins.
+And finally, we will wait for Jenkins to start successfully
+before exiting from the playbook.
+Let's head over to the Terraform controller node
+on which we have been working throughout the course,
+and we're going to have a Jenkins playbook
+for the Jenkins master.
+So I'm logged into the Terraform controller node
+and inside the project folder
+where we have been writing all the Terraform code
+and Ansible templates.
+So we'll cd into the ansible_templates folder,
+where we're going to be housing all the Ansible templates.
+And let's create a file called install_jenkins_master
+to house our Jenkins master playbook.
+We'll first copy a common configuration for the playbook.
+This configuration basically defines how the playbook
+will find the host that it needs to run against
+and how it's going to connect
+to the remote host in question.
+So we're basically passing the host
+via the variable passed_in_host, which will be defined
+to the Ansible dynamic inventory.
+We're telling the playbook to become the EC2 user
+to connect to the remote instance,
+which in our case is the Jenkins master
+and we're also telling it to become root
+to be able to run all the plays inside this task.
+So the very first play will be to install the dependencies.
+We're using the yum module for that
+and we're actually iterating over 3 packages
+to install them in one play.
+This is a package variable
+which is internal to this play only
+and we're defining the package to contain 3 values.
+The package variable is basically a list
+defined to the variables parameter in this play
+and yum is going to iterate over this list 3 times
+to install all of these 3 packages: wget, java, and git.
+The next task is to clone Jenkins pre-configured files
+from a git repo so we'll be using the git module for that.
+The git module basically requires the URL to the repo,
+which in our case, we're passing here.
+And in our case, we're passing in the destination folder
+where we want the files to be cloned over.
+Next, we're going to set up Jenkins repo and its GPG key.
+For that, we'll be using 2 plays actually.
+So the first play is going
+to download the Jenkins repo configuration from the URL
+via the get_url module.
+This module is used for downloading stuff
+over HTTPS, HTTP, and FTP.
+And we're letting it know to download this
+to the destination etc/yum.repos.d.
+The etc/yum.repos.d directory is a standard directory
+for housing all the Red Hat repository definitions.
+And in the next play,
+we're actually importing the Jenkins repo GPG key.
+We're using the rpm_key module,
+which is used for installing RPM keys
+inside the RPM database.
+In our case, we are passing the key via a URL
+and letting the rpm_key module know
+that this key has to be present,
+which means that it is going to install the key.
+Let's give ourselves some space
+and paste in the next 2 plays.
+The next 2 plays basically install Jenkins.
+The Jenkins default installation is done via the yum module,
+which you might have seen earlier in the course.
+We're passing in the name of the module to install,
+and we're ensuring that the state of the Jenkins package
+is present and installed.
+The next play temporarily is going to stop Jenkins
+using this service module, which takes the name
+of the service to stop and the state that you want it in.
+So we want it to be stopped.
+In the next couple of plays,
+we'll be deleting the files installed
+by the default Jenkins installation
+and copy over the pre-configured files
+that we just cloned over from the git repo.
+The first play deletes the Jenkins default directory,
+which is var/lib/Jenkins
+and we're using the file module for that.
+We're letting it know through the state absent
+that we want this directory to be deleted.
+And then the very next play,
+we're copying over the cloned Jenkins
+pre-configured installation
+back onto the var/lib/jenkins folder
+and we're using the copy module for that.
+Now notice that we're passing the remote_source parameter
+for this, which basically tells the playbook not to copy
+from the Terraform controller node
+from which this playbook has been run,
+but to go and look for the source directory
+on the same system that it is running against and copy it
+on the same system on this path.
+In the next couple of plays,
+we are restoring the Jenkins user ownership
+on the var/lib/jenkins directory,
+which we freshly copied over in the previous play.
+We're using the file module again,
+we're giving it the path to the directory
+which we want the permission state for.
+We're letting it know that it's a directory
+and to request over all the files in this directory
+to give the ownership of the files to the Jenkins user,
+otherwise the Jenkins processes wouldn't be able to restart.
+In the next play, we're starting up Jenkins
+using the service module.
+We're passing in the name of the service,
+the state that we want it in,
+and we're also setting the service to be enabled,
+which means that it is going to start up
+on reboot of the system.
+And finally, with our final play of the task,
+we're going to run the shell module.
+We're actually running a single bash liner
+to iterate over a while loop
+and determine if the Jenkins processes
+have come up successfully.
+We're doing that by searching the startup logs
+of the Jenkins application
+for the words "Jenkins is fully up and running"
+and we'll keep looping over and searching for the string
+in var/log/jenkins/jenkins.log file
+until we find this string, which usually comes up
+when Jenkins has successfully started up.
+We're setting the result_first is equal to one
+so that when we actually find the string within a log file,
+we'll set its value to zero, which will then break
+out of the while loop and move forward with the process.
+In the same play, we are using the register parameter
+to create a parameter for Ansible to store the results
+of the above shell command.
+And next up, we are using the until parameter in this play
+to keep executing this play until the result code
+returned by the above shell command is zero.
+So if we keep getting anything other than zero,
+which would be the case if the string is not found
+in the Jenkins file, this play will keep executing
+until Ansible's or Terraform's own timers kick in.
+So we're done with the playbook now.
+We'll save and quit out of this playbook, clear the screen.
+We won't be deploying the infrastructure with Terraform
+in this lesson, we'll just make sure
+that our playbook is syntactically correct
+for which we'll be using the Ansible playbook command
+with the syntax check flag.
+So let's go ahead and execute that command.
+We're using the syntax check flag to make sure
+that our playbook is syntactically correct
+and doesn't have any typos or indentation faults.
+This of course does not check for any logical issues
+within the playbook, but it does ensure
+that we have not made any typos in the module names
+or the parameters.
+And because our playbook expects the host to be passed in
+via a variable, we'll be passing in a dummy variable name,
+which is localhost via the -e flag,
+which is for passing in extra variables
+to the Ansible playbook.
+And finally, we'll be giving it the name of the playbook.
+So once we hit Enter, if we get that the name
+of the playbook at the end of the execution,
+it means that the syntax check was successful
+and this file is verified for correct syntax.
+We might see warnings, but that would be only because
+we're not providing the playbook with real nodes
+to run against.
+And as expected,
+we have been returned the name of the playbook.
+We can also check the return code of this command
+to ensure that it was successful.
+A zero return code
+for the Ansible playbook syntax check command
+means that the syntax check was successful.
+So to summarize it all, we have been able
+to create a Jenkins playbook for the Jenkins master,
+which runs through a series of steps to configure
+and install Jenkins and then start up Jenkins
+on the Jenkins master node.
+Thank you for following along and going through this lesson.
+Now, if you've got time, join me in the next lesson,
+where we'll be going through setting up the Jenkins playbook
+for the Jenkins worker.

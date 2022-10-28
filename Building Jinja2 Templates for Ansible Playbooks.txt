@@ -1,0 +1,119 @@
+Hello, all you awesome Cloud Gurus.
+In this lesson, we'll be learning
+how to build Jinja2 templates for our Ansible playbooks.
+Now you might've heard me mention the Jinja templates
+a couple of times when we were building the playbooks
+for our Jenkins worker in the previous lesson.
+So in this lesson, let's dive right into it
+and understand what Jinja templates are
+and how they help us with the automation.
+Jinja is a user-friendly templating language for Python.
+And Ansible leverages Jinja2 templating
+for dynamic expressions and access to variables
+which is how we pass down some of the IP addresses
+in our playbooks.
+Since Jinja is only required on the Ansible controller node
+this helps in keeping the dependencies to a minimum
+as target nodes don't need to have Jinja installed.
+Only the Ansible controller does.
+The Jinja template files end with the extension .j2.
+Usually the Jinja template resides
+on the Ansible controller node
+and any variable substitution happens
+before the template is copied over to the target node.
+For example, in the resolv.j2 file that you see here,
+the contents read name server, and then the IPv4 variable,
+which we're passing inside the template.
+In Ansible and Jinja variables are indicated
+by the double curly braces around them.
+So in this file, resolv.j2, we expect this variable
+to be substituted on the fly by a dynamic value.
+In this Ansible playbook snippet below,
+we actually see Ansible leveraging Jinja templating
+using the template module.
+In this play, the resolv.j2 Jinja template is copied over
+to the remote node as the etc/resolv.conf file.
+And before it is copied over, the IPv4 variable
+inside the template is substituted
+with the value we pass under the vars field of the play.
+The ansible_default_ipv4.address is
+an Ansible internal variable,
+which represents the IP address of the target node
+against which it is running
+and it is populated by default at Ansible playbook runtime.
+So basically we are copying over the template file
+from the Ansible controller.
+And as we copy it,
+we're substituting the IPv4 address variable
+inside this file and renaming it to resolve.conf.
+We're also additionally setting the owner
+and mode for the file.
+Now let's head over to the Ansible controller node
+and write down a couple of Jinja templates
+which are required by our Jenkins worker node.
+So I'm logged inside our Terraform
+and Ansible controller node
+inside our Terraform Ansible project folder.
+We'll cd into the ansible_templates folder.
+Let's quickly remind ourselves
+what Jinja template we are creating
+by looking at the Jenkins worker's Ansible playbook.
+One of the plays has references to node.j2
+a file we'll be building with Jinja,
+which will be used by Jenkins worker
+to integrate itself with the Jenkins master.
+In another play, we'll need the cred-privkey.j2
+Jinja template for using in conjunction
+with the Jenkins API call made from the Jenkins worker
+to create credentials for itself on the Jenkins master node.
+So these other 2 Jinja templates we need to create.
+So let's quit by pressing Q,
+clear the screen and start with the node.j2 Jinja template.
+So this is the body of our Jinja template.
+Now don't mind the details of the XML file
+as this is very specific to Jenkins,
+but I would like to steer your attention
+to the IPv4 variable embedded inside this template,
+which we are using in a couple of places
+to customize this template.
+So we're using it in the name field of the XML,
+as well as the host name field of the XML
+and the credentials ID of the XML.
+So once this template is copied over
+to the respective Jenkins worker,
+it will be substituted for the IPv4 address
+of that Jenkins node,
+and therefore will be custom to that Jenkins node.
+Let's save and quit out of this file.
+And now let's create the other Jinja template.
+This file is again, very specific to Jenkins.
+However, I will attract your attention again
+to some variables.
+This file requires a distinct ID,
+the Jenkins username and the SSH private key
+of the Jenkins worker node.
+Because the ec2-user is a constant user
+across all Jenkins workers for SSH,
+we have actually hard-coded that into the config.
+However, to make the ID of the XML SSH credential unique,
+we're passing in the IPv4 variable at runtime
+to substitute the Jenkin worker's own IP address
+in its place.
+Right at the end of this XML config,
+we are also using the priv_key variable,
+which is used to substitute the Jenkin worker's
+SSH private key contents in its place.
+And that SSH private key is generated in an earlier play
+in the same Ansible playbook for the Jenkins worker.
+Let's save and quit out of this file as well.
+And we are done building the Jinja templates
+to be used inside our Jenkin workers Ansible playbook.
+Thank you for going through
+and following along in this lesson.
+Now, if you've got time,
+join me in the next lesson where we'll be brushing up
+on our final project code,
+adding a destroy provisioner to our Jenkins worker
+resource in Terraform,
+and finally issuing a Terraform apply
+to see if everything works as expected.

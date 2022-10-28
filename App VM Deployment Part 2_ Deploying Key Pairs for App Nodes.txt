@@ -1,0 +1,165 @@
+Welcome back Gurus,
+and in this lesson, we'll be deploying EC2 key pairs
+for baking into our EC2 instances
+on which we'll be installing our application
+so that we can get SSH access to those application nodes.
+The main part of this lesson of course,
+is to use key pairs and embed them into our EC2 instances,
+however, we first have to generate them
+because we'll be importing of our own key pair
+to use inside our EC2 instances.
+A key pair consists of private and public keys
+that are used to prove your identity
+when connecting to an instance.
+Amazon stores the public key data
+inside the EC2 instance,
+and you store the private key instead of a password.
+You then use the private key
+that corresponds to the public key,
+which is by default baked into the authorized keys file
+on a Linux system
+to gain SSH access to the system.
+You can either have AWS generate a private key for you
+or generate one using a third-party tool or Linux utility,
+and import them into AWS to be used on your EC2 instances.
+In our case, we'll be generating our own private key,
+create an EC2 key pair out of it,
+and then attach that EC2 key
+to our EC2 instance to get access.
+But remember one thing,
+EC2 key pairs need to be created
+and attached to an EC2 instance
+before the instances are created
+because they are baked into the instance at boot time.
+At no stage after the creation and booting of an instance,
+is it an easy process to attach another key pair to it.
+There's other ways of connecting to an instance without SSH,
+such as systems manager, session manager,
+but that doesn't use the mechanism
+that we're talking about here.
+So without further ado,
+let's dive right into our Terraform controller node
+and see how we'll be doing this using Terraform.
+So we logged into our Terraform controller node
+on which we've been working throughout this course,
+let's cd into our project folder
+and start working on the SSH key pair
+that we'll be generating for this EC2 key pair.
+So the command that we'll be using
+to generate the key pair locally on the system,
+we'll be using the command ssh-keygen.
+Now this command is a Linux utility,
+which is available on CentOS.
+Your distributions command may vary,
+but generally on Linux systems, ssh-keygen
+can be used to generate SSH key pairs
+which comply with Amazon's requirement,
+that is, they should be using RSA 2048 bit keys
+compatible with version two protocol of OpenSSH.
+The command will be ssh-keygen -t rsa.
+Now, this will by default generate a 2048 bit key,
+which is compatible with OpenSSH protocol two.
+So we'll hit Enter, and this is an interactive command,
+which means that it's going to ask us for input,
+and our scenario, we'll just keep hitting Enter
+as we don't want to change the defaults for right now.
+So you'll notice that it's asking us to provide a path
+for the private key, which we are happy with for right now,
+which is the .ssh directory inside the home users directory,
+so we'll hit Enter.
+We don't want to give a passphrase and we'll hit again Enter
+to make sure that we are not passing a passphrase,
+and we have generated both a private key and a public key.
+The private key is name is id_rsa,
+and the public key's name is id_rsa.pub,
+and notice that they're in the home directory
+of the user that were logged into
+the Terraform controller node as.
+So let's quickly clear the screen
+and now open up our instances.tf file
+to continue working on the code.
+We previously use the SSM barometer to fetch the AMI IDs,
+and now we'll just give ourselves some space
+and copy the new code for using the keys
+that we just generated.
+So the code for that is these 2 blocks,
+and they're pretty much similar,
+except that we are generating 2 separate keys,
+one for the master node and the other one
+for the worker nodes in the separate region.
+Remember that EC2 key pairs are regional,
+therefore, if your instances are in different regions,
+you will need to generate a new key
+for that separate region, which we're doing so here.
+So the resource being used for that is aws_key_pair,
+we are giving the label of master-key
+for the Jenkins master node,
+we're using the provider for the us-east-1 region,
+we're giving it the key_name, which is optional,
+and finally, the only required field of this resource
+is the public key, which is what
+is going to be registered with AWS
+to allow us SSH access to our EC2 instance.
+and in the second resource for the key pair,
+we are again generating the key pair
+for the region worker in us-west-2,
+we're giving it the same name as the first one,
+however, it's going to be in the separate region
+so it doesn't matter what name we give it,
+and again, the mandatory field
+in this resource's public key,
+which we're again passing as the same
+we passed in the previous resource.
+Now don't be phased out by this tilde or slash,
+it basically substitutes for the home directory
+of our logged in user,
+which in our case would be /home/cloud_user.
+So now that we are done writing the code
+for creating the EC2 key pairs, let's revise what we did.
+We actually generated the key pair first,
+instead of having Amazon generate it for us,
+which if you work on the console,
+before you create the instance
+you actually create a key pair
+which you directly download the PEM key of,
+and that's the only time you will be able
+to download the PEM key.
+In our case, we have actually generated the PEM key file,
+which is in the .ssh folder of our user,
+so let's save and quit out of this,
+clear the screen, and run Terraform format,
+and next we'll be running Terraform validate
+to make sure we didn't introduce any errors.
+So this looks to be all set,
+so let's clear the screen and run a quick Terraform plan.
+Our resource count has increased
+from 18 in the previous lesson to 20
+because we are creating 2 new EC2 key pairs.
+Let's clear the screen, and finally run a Terraform apply
+to see if this actually works.
+We'll hit Enter to give it the permission
+to deploy the actual infrastructure
+and wait for it all to be deployed.
+And the Terraform apply has gone through,
+so if I was to scroll up a little bit,
+you'll notice that we created an EC2 AWS key pair
+for the master Jenkins node,
+and another one for the Jenkins worker node
+in the us-west-2,
+and we'll also see the completion messages
+for both these resources down here.
+Now in the next lesson,
+we'll actually be using these keys
+to spin up EC2 instances,
+and then ensure that we can connect to those instances
+using the keys that you have created.
+And don't forget to run a Terraform destroy
+to destroy all the resources that you've created
+if you're done working for the day.
+So I will just clear the screen and run Terraform destroy.
+We'll also add auto-approve flags
+so that we're not prompted for entering yes
+before the infrastructure is destroyed.
+And we are all set.
+Thank you for going through this lesson.
+Now, if you've got time, join me in the next lesson.

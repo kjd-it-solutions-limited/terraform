@@ -1,0 +1,138 @@
+Hello Cloud Gurus.
+We'll be talking about AWS Providers
+and how to set them up in Terraform.
+In the context of this course,
+we'll be setting up multiple providers as we need to deploy
+a distributed multi-region CI/CD pipeline.
+Providers are the building blocks of Terraform.
+They provide the source code for all Terraform resources
+and they can carry out interactions
+with the vendor APIs such as AWS and Azure.
+They also provide logic for managing,
+updating, and creating resources in Terraform.
+To your right, you can see a block of Terraform providers,
+and this is how you would define multiple providers.
+The secret sauce behind defining multiple providers
+is using the parameter called alias.
+This is how you peg down a specific provider to an alias,
+and then you can invoke specific provider
+against a specific resource in your Terraform code.
+So let's have a look at how we'll do that.
+So let's move to our trusty instance
+on which we have installed Terraform Ansible.
+And we previously also set up
+the Terraform S3 backend on it.
+So inside the Terraform project folder,
+on the instance if you're following along with me,
+the very first thing we'll do
+is to create a couple of variables
+which we'll then plug into our providers.
+So let's create a file called variables.tf.
+We'll create variables for the AWS profile
+as well as the regions
+in which we'll be deploying EC2 instances in.
+The declaration of variables requires the keyword variable,
+then the arbitrary name
+that you want to give to your variable,
+and then defining the type of variable,
+and optionally you can also
+pass a default value to that variable.
+Now we'll create 2 separate variables
+for the different regions in which we'll be deploying.
+Let's copy this down again.
+And we'll change the default value
+for the second region-worker variable to us-west-2.
+And now we are all set to go and use these variables
+inside our provider blocks.
+So let's quit and save of course.
+Now let's create the providers.tf file
+in which we'll be putting down our providers.
+So again the providers syntax has the keyword providers,
+the name of the provider which is AWS in our case.
+We'll be passing down the profile
+which we already created a variable for
+so we'll just pass in that variable.
+We'll give it the region
+again for which we created a variable.
+And finally, we'll be giving it an arbitrary alias.
+We'll do the same for the second provider
+that we're creating.
+So we'll just copy this chunk of Terraform block
+and paste it down here.
+We'll just go ahead and make some changes here.
+So we'll keep the profile same
+because the profile for both the providers
+is default in our case.
+We are not using multiple profiles.
+So the region for the second provider is region-worker.
+And we'll also change the alias of this provider
+to region dash worker.
+So now we are all set.
+And remember with any changes to modules or providers,
+we always need to run terraform init.
+It also initializes the S3 backend
+as well as downloading any modules or providers
+that we have specified in our code.
+So let's go ahead and run terraform init.
+And we see that there's a couple of mistakes
+that we made here.
+The first mistake is that we tried to follow the old syntax
+where the type of the variable that we defined
+was inside double quotes,
+whereas now it is not expected to be inside double quotes.
+And the second mistake that we made was a typo.
+It's provider and not providers.
+So notice how explicit Terraform commands are
+in giving you all the errors.
+So let's go ahead and quickly rectify
+all the mistakes that we made.
+Now that we've rectified all the mistakes,
+let's run terraform init again.
+And this time we see that Terraform has downloaded
+the plugins that we have specified.
+And still we see that we are lagging
+on line seven on variables.tf
+where we need to take out the quotes.
+So we'll do that.
+Let's clear the screen and we'll run terraform init again
+just to be sure that we are not leaving any mistakes
+in the Terraform code.
+So I'll just do terraform init for one last time.
+And since the providers were already downloaded,
+this command did not download the providers again
+to save on the bandwidth.
+But now our Terraform directory has been initialized.
+The providers have been downloaded.
+And if you want to see deep under how the providers are used
+or placed on your project,
+you can go inside the folder called .terraform.
+You won't see that folder explicitly
+when you list the directories,
+but that is because it's hidden.
+Any folder that starts with the name dot
+will be hidden on a Linux system.
+So let's clear the screen and do .terraform,
+and let's see what's inside that folder.
+So we'll see we have a local copy
+of the terraform.tfstate file.
+At this point, it won't have anything inside it.
+And there's no value except for the bucket name
+which we previously configured for it to peg down
+and save its Terraform state in.
+Let's clear the screen
+and see what's inside the other folder.
+So we go inside plugins,
+and finally we find the binary file for our AWS Provider.
+So if we were to do a file against this,
+this is a binary file executable which is used by Terraform.
+And this is the self-contained code
+which helps Terraform understand
+all the resources and their logical connections
+when you are writing Terraform templates.
+So this is in a nutshell how to declare multiple providers.
+And later on in the upcoming videos,
+we'll see how we can invoke
+specific resources inside a different region
+using the providers that we have created.
+Thank you for going through this video.
+And join me in the next video if you've got time.

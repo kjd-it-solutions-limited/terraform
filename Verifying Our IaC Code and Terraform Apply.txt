@@ -1,0 +1,283 @@
+Hello, everyone.
+Welcome to this final deployment lesson.
+This is going to be an amalgamation of all the work
+that we have done throughout this course.
+If you've been following along, pat yourself on the back
+because you're about to see all the hard work pay off.
+So lights, camera, apply!
+But wait a second.
+Before we do that,
+let's see the checklist we have to run through
+before we can actually run the terraform apply.
+You'll have to make sure that you have downloaded
+and configured Ansible, Terraform, AWS CLI, and Boto3
+on your Terraform Controller.
+You will also need to ensure
+that you generate an SSH key-pair for your user
+on the Terraform Controller node
+and pass the correct path to it in the Terraform code.
+Moving on, you're going to have to make sure
+that you're using Terraform version 12 or above.
+For the AWS part,
+make sure that you either have an AWS credentials file
+in the .aws directory in your home folder
+or, if you're running Terraform Controller in AWS
+on an EC2 instance with a role attached,
+that the role has appropriate permissions
+to carry out all the tasks required by the project.
+Run terraform format to format your code,
+terraform validate to check it for syntax,
+terraform plan to see how many resources
+the code would create,
+and finally, execute terraform apply.
+And hopefully, your terraform apply
+would be able to complete successfully
+and return to you the URL to your Jenkins installation
+for logging in and checking.
+Do not worry if it fails.
+Take a deep breath and troubleshoot.
+Sometimes, the smallest of typos
+and the weirdest of glitches in AWS can cause errors.
+We'll now log in to our Terraform Controller node
+and make a few changes to our Terraform code
+to make it ready for deployment.
+So I'm logged in to the Terraform Controller node.
+So let's go ahead and modify the resources
+for our Jenkins worker and Jenkins master.
+We'll only be modifying the provisioners in our case.
+So we'll open up instances.tf
+and head down to the resource definition
+of our Jenkins master.
+This is the definition for our Jenkins master.
+Now, remember that in the previous lessons
+for Ansible configuration management,
+we actually created a custom playbook
+for our Jenkins master,
+so we'll just need to replace
+the name of that playbook here,
+so we'll go ahead and do that.
+The name of that playbook was install_jenkins_master,
+and we're all set.
+Now let's go ahead and make a few changes
+to the provisioner of our Jenkins worker.
+So just like with the Jenkins master,
+we also created a custom file for the Jenkins worker,
+so we'll need to go ahead and change the name
+of the playbook being executed
+via the creation provisioner in Terraform.
+The name of this file would be install_jenkins_worker.
+And we'll also be making a little change
+to the extra vars we are passing
+to the ansible-playbook command.
+If you jog your memory a little,
+we used a variable called master_ip
+in the playbook for our Jenkins worker
+to pass the private IP address of our Jenkins master.
+So we need to pass that through this command line argument,
+so we'll do that now.
+So this highlighted part
+is what we've added to the extra vars.
+We are passing a variable called master_ip,
+and we're assigning it the private IP address
+of the Jenkins master
+via the Terraform resource for the Jenkins master.
+Notice how the object is enclosed within curly braces,
+as this would be the case
+when you're passing objects inside a provisioner.
+Now let's go ahead and add a destroy-time provisioner
+to our Jenkins worker.
+The reason we are adding this destroy-time provisioner
+to the Jenkins worker resource
+is because the workers are going to be ephemeral,
+as in they can come and go,
+but the Jenkins master is the only constant
+in this equation.
+So we'll need the Jenkins worker to de-register itself
+if it has been deleted,
+and for that reason,
+we're adding the destroy-time provisioner.
+So we'll paste the provisioner in,
+and this is the chunk of code pertaining to the provisioner.
+You'll notice that we're using the when argument
+to define the destroy provisioner,
+and we're using the inline parameter
+to run a Bash command on the shell of the Jenkins worker.
+Before we focus on the inline command,
+let's look at the connection.
+This connection block is used
+by the destroy-time provisioner
+to actually connect and log in to the instance in question
+and then run this command above.
+So you'll notice the information that it requires
+is the type of connection,
+the user that it needs to connect as,
+the private key to connect with,
+and the public IP of the host.
+Now, going back to the command,
+we're actually invoking the Jenkins API binary,
+which we actually downloaded onto the Jenkins worker,
+using the custom Ansible playbook that we wrote for it,
+and we're passing in the authorization credentials
+using a file called jenkins_auth.
+This file we'll create
+and put inside the ansible_templates directory
+once we're done with this instances.tf file.
+This file is important
+because this is how the Jenkins worker will connect
+with the Jenkins server on the Jenkins master
+and issue API calls.
+This file is also referenced
+in the playbook for the Jenkins worker.
+Then we're passing the URL
+to the API endpoint of the Jenkins server,
+and notice how we're passing the resource
+for the Jenkins master
+and passing in its private IP.
+Also note that Jenkins server runs on port 8080,
+so we have appended that to the URL as well.
+It looks like by mistake we have typed down the auth flag
+2 times in this command,
+so let's go ahead and rectify that.
+And this looks much better.
+So let's save and quit,
+so let's save and quit out of this file,
+and we still need to make a couple of changes.
+Remember the jenkins_auth file?
+We'll still need to create it.
+Let's see where we're referencing that jenkins_auth file
+in the playbook for the Jenkins worker.
+So we're referencing this file in a play
+which copies over the file from the current directory
+from which the ansible command is invoked.
+So let's quit out of this file
+and create the jenkins_auth file.
+We'll be creating this file
+under the ansible_templates folder,
+which is where the Ansible playbook expects it to be.
+So the contents of the file read
+admin, which is the username,
+and then separated by a :password
+which is the password of the Jenkins installation.
+Not the most secure password,
+but this is just for the test deployment,
+and it's best to tear down infrastructure
+as soon as you're done learning and testing with it.
+Next, I will be getting the public DNS domain,
+which we'll be putting in front
+of our application load balancer.
+The command for that would be
+aws route53 list-hosted-zones.
+Now, if you're following along in your own AWS account,
+you'll need to make sure that this domain is publicly routed
+and that it is not private.
+Or if you have access to the A Cloud Guru Cloud Playground
+and are using it,
+then you'll be provided with a temporary DNS domain name
+which you're going to get by running the same API call
+and use within your Terraform code.
+So we'll copy over this name
+which is under the HostedZone array
+along with the dot at the end,
+and we'll be pasting this inside the dns-name variable
+in the variables.tf file,
+so we'll open that file up.
+I'll go right to the end and paste in our domain.
+Make sure that you copy the dot at the end
+as that is very important,
+otherwise your deployment might not work.
+And also, we'll change the web server port to port 8080
+as we use this 80 port for showing a sample deployment
+using Ansible playbooks.
+However, for our file deployment,
+we'll need this to be port 8080
+as Jenkins server runs in port 8080
+and stall our traffic from the load balancer
+on the same port.
+So we'll change this, and now we're good.
+We'll save and quit, clear the screen,
+and finally start running the Terraform train of commands.
+First, we'll run terraform format.
+Next, I'll run terraform validate.
+Although our validation has been successful,
+but a warning has popped up.
+HashiCorp does not recommend using resources
+inside another resources provisioner.
+That is because it could cause cyclical dependencies.
+However, in our case,
+we have ensured that the Jenkins worker only spins up
+after the Jenkins master has spun up
+using the depends_on parameter
+in the Jenkins worker resource within Terraform.
+However, it is good to know best practices.
+So we'll clear this all and run a terraform plan.
+It looks like we'll be spinning up 31 resources.
+We'll clear the screen
+and finally execute the terraform apply
+which you have been waiting for
+since the start of this project.
+We'll enter Yes to allow it to deploy.
+On average, I've seen the deployment
+take about eight to 10 minutes
+for one Jenkins master and worker,
+so it may be around the same ballpark for you.
+However, it may take more,
+so don't be worried if it takes a little bit of time.
+Now I'll speed up the video and come back
+when terraform apply has finished running
+and has returned to us a URL
+on which we can access our Jenkins application
+and make sure that everything has been set up properly.
+Our terraform apply has successfully completed,
+and it has returned to us the URL
+on which our Jenkins application is running.
+So we'll copy this into a buffer
+and test it out in the browser.
+So remember that in the application load balancer,
+we set it to redirect http to https,
+so once I press Enter, we should see that happening.
+And we're seeing a secure connection
+to the Jenkins application.
+We'll log in using the preconfigured credentials
+for our Jenkins application,
+which is username admin, and the password was password.
+It looks like everything is good.
+We'll verify that the Jenkins worker was integrated
+with the Jenkins master
+by going into the Manage Jenkins section.
+These warnings can be ignored.
+Under the Manage Jenkins section,
+we'll go into Manage Nodes and Clouds,
+and here we'll see the private IP address
+of our Jenkins worker
+as well as the Jenkins master here.
+So this shows us that the Jenkins worker
+has been successfully integrated
+with the Jenkins master,
+and now we can set up our CI/CD pipeline
+using distributed jobs.
+You can also go back and play around
+with increasing or decreasing the count
+of the Jenkins worker
+via the worker-count variable.
+Our infrastructure code should be able
+to successfully handle the registering, deleting,
+and also creating and integrating the Jenkins worker
+with the Jenkins master.
+And finally, when you're done testing,
+destroy it all via terraform destroy.
+If you have been following along, congratulations
+on being able to follow through with this course.
+And if you face any issues or errors
+while deploying this infrastructure,
+feel free to reach out to us
+through our official support channels
+and reach out to me.
+I'll leave it up to your imagination
+to go ahead and modify this code to your liking,
+to do whatever you want with this automation.
+I would like to sincerely thank you all
+for following along and keeping up with me.
+Now, if you've got time, join me in the next lesson.
+We will be learning how to troubleshoot
+Ansible and Terraform.
+This is Moosa Khalid signing off for A Cloud Guru.

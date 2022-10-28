@@ -1,0 +1,202 @@
+Hey, Cloud Gurus.
+Welcome to this lesson on deploying security groups
+for our project using Terraform.
+So the way the traffic flows for our project
+is that the traffic comes from the internet.
+And the first thing it hits
+is our application load balancer,
+which we'll be creating in upcoming lessons.
+The application load balancer
+has a security group attached to it,
+which allows incoming traffic on port 80 and port 443
+from the world.
+And also allows outbound communication
+on all IP addresses.
+The application load balancer routes the traffic
+to the Jenkins Master in us-east-1,
+which then hits the security group of the Jenkins Master.
+In the Jenkins Master,
+in the inbound rules for the security group,
+we are allowing traffic from the application load balancer
+on port 8080 over TCP,
+which is the port where the web server of Jenkins runs.
+We're also allowing incoming TCP traffic
+from the Jenkins Worker,
+and also allowing all outbound communication on TCP.
+The security group of the Jenkins Worker
+has an inbound rule of TCP communication from Jenkins Master
+on all ports,
+and also allows TCP communication to the world.
+The reason for the outbound rules
+on the security groups of master and worker
+is so that they can reach out to the internet,
+and initiate connections to the internet.
+Whereas the TCP connections that you see
+in both the security groups of master and the worker,
+which is allowing them to talk to each other
+is so that the worker can integrate with the master
+over port 22,
+and the master can send the information for jobs
+and various CI/CD pipeline events
+to the worker over ephemeral TCP ports.
+So now that we have a good idea of the general layout
+of the security groups that we're going to be deploying,
+let's head over to our Terraform controller,
+and actually implement this.
+So I'm logged into our trusty Terraform controller
+on which we've been working throughout this course.
+We'll go into the project folder,
+and we have the network, backend, and providers,
+as well as variables.tf file.
+So let's create a new file called security_groups.tf.
+And let's paste the first security group
+for our application load balancer.
+Now, this might seem a little bloated
+but this is the way security groups
+are going to look like in Terraform.
+We have the aws_security_group resource
+with the label lb-sg.
+It's been created in the region-master
+as we can ascertain by the provider
+that is given inside the resource.
+And we're passing in a couple of ingress rules.
+Just as you would see on the security groups console on AWS.
+Again, as we discussed,
+we are allowing traffic from all the world on port 443
+and port 80.
+Eventually, we'll be redirecting traffic
+from port 80 to port 443 using load balancer's rules.
+However, that is the task of an upcoming lesson.
+We are also allowing an egress rule,
+which is allowing outbound traffic on all ports,
+which is represented by -1 protocol.
+So in Terraform,
+if you want to represent the protocol as all,
+which you see on the UI of AWS console for security groups,
+you're going to pass in -1, which means all protocols.
+So this is the security group
+for our application load balancer.
+Now, let's give ourselves some space
+and put in the security group
+for our Jenkins Master.
+So this is the security group for our Jenkins Master.
+Again, note that this has been created
+in the same region as where the Jenkins Master EC2 instance
+is going to be spun up.
+We are allowing a couple of ingress rules
+and then an egress rule.
+We have an ingress rule,
+which is allowing traffic on port 22
+so that we can SSH into our instance,
+and we are passing the CIDR blocks
+using an external IP variable,
+which we'll be creating in the variables.tf file
+in a moment.
+We are also allowing the ingress rule on port 8080
+and notice that instead of a CIDR block now,
+we are passing the security_groups ID
+from which we expect to receive the traffic.
+Since the load balancer will be receiving traffic
+on port 443 and forwarding it to port 80
+for our Jenkins Master,
+we want to add the ID of the load balancer's security group
+as a rule in the ingress for Jenkins Master.
+And then we have an ingress rule
+for allowing traffic from the IP range
+of the Jenkins Worker,
+which is in the peered VPC in us-west-2.
+And finally, we have an egress rule
+for allowing all outbound traffic.
+Now, let's quickly save and quit out of this file
+before we create our final security group
+for our Jenkins Worker
+to go out and create the variable
+for external_ip that you just saw in the ingress rule
+for the security group that we just pasted in.
+So I'll save and quit,
+and we'll open up the variables.tf file.
+Go right to the bottom of it,
+and add a new variable.
+And we're going to give it the default value of,
+and we'll give it the default CIDR range
+for the whole internet
+in case this variable is not explicitly passed
+by the user.
+And I think we're good.
+Now we can go back and continue on
+with creating the security group for our Jenkins Worker.
+So we'll again open up security_groups.tf.
+Give ourselves some space.
+And paste in the security group for our Jenkins Worker.
+This one is a little bit more simple
+because the Jenkins Worker won't be receiving traffic
+from the load balancer.
+It only needs to communicate
+with the Jenkins Master, which is going to be in us-east-1,
+and therefore, it will need to allow traffic
+from the VPC where the Jenkins Master resides.
+So the first ingress rule we see
+is allowing traffic on port 22 from our external IP.
+We can set it to whatever we prefer it to be.
+For example, you could set it to your own home's public IP
+or your service public IP
+from which you're running the terraform apply command,
+or just not give is explicitly as an input,
+and the default value will be set,
+as we just saw in the variables.tf file.
+The second ingress rule allows all protocols
+from the CIDR range of the subnet
+where the Jenkins Master resides.
+And finally, we're allowing an egress rule,
+which allows the Jenkins Worker
+to reach out to the internet.
+Our security group setup is complete.
+Now let's go back and test it out.
+I'll clear the screen and quickly run one
+of my favorite commands, terraform format.
+It looks like a couple of files got formatted
+for more beautiful-looking code.
+And now let's run terraform validate.
+Everything looks set.
+Next up is terraform plan.
+And our resource count has grown to 18.
+It's going to be creating the security groups
+and all the other network components
+that we previously set up in earlier lectures,
+such as VPC peering, subnets, and VPCs.
+Now, let's clear the screen
+and execute a terraform apply
+but this time, I will rather
+not have terraform apply explicitly ask me
+to enter yes before it actually deploys the infrastructure.
+So I'll just pass it the flag --auto-approve.
+Be very careful with this flag
+because now I'm actually telling terraform apply
+not to wait for my approval
+and just go ahead and deploy the infrastructure.
+This command might be useful in automation
+but if you're working or testing out a project,
+I recommend not using this flag.
+So I'll hit Enter, and we'll wait
+for the infrastructure to be deployed.
+It looks like everything went through pretty quickly.
+That's the advantage of Terraform
+that it is handling all the dependencies
+and complexity for you
+so you don't have to go back and forth
+and see where you went wrong,
+or how a dependency's working,
+and which dependencies you need
+to take care of before another resource can be spun up.
+This completes the objective of our current lesson.
+Let's clear the screen
+and destroy the infrastructure that we spun up.
+Terraform destroy is going to ask me
+for permission before it can delete the infrastructure,
+just as apply inquires before creating infrastructure.
+So it's going to let us know about all the resources
+that it's going to delete.
+We'll just enter Yes.
+And it's as easy as that.
+Thank you for following along in this lesson.
+Now, if you've got time, join me in the next lesson.

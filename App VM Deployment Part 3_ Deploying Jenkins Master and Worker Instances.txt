@@ -1,0 +1,236 @@
+Hello folks and welcome back
+to the deployment of our Jenkins Master
+and Worker Instances.
+The objective of this lesson
+is to just spin up the EC2 instances
+on which these applications will be installed
+and to test if the EC2 key pairs
+that we created in the earlier lesson
+can be used to connect to these instances over SSH.
+So again, our objective would be to spin up
+a Jenkins main node,
+and a number of Jenkins Worker nodes.
+The reason I see a number of Jenkins node
+is because we're going to be setting a variable
+to determine how many Jenkins workers will be created
+simultaneously on Terraform Apply.
+We're going to attach to the instances,
+the security groups and key pairs that we created earlier.
+We'll also provide input to the instances at creation time,
+such as subnets, where they will be spun up,
+and AMI IDs that we fetched
+using SSM public parameter store, in an earlier lesson.
+We'll be creating a couple of variables
+for passing the EC2 instance type to our application nodes
+and setting the number of Jenkins Worker nodes
+to be spun up,
+and to drag the IP addresses of our newly created instances
+on successful Terraform Apply,
+we'll use the outputs block in Terraform
+to output the IP addresses
+for all the EC2 instances created.
+So let's hop on to our Terraform controller node.
+We'll be primary working on instances.tf,
+so let's clear the screen, open up instances.tf,
+and start working on the code.
+We'll give ourselves some space
+so we can paste in the additional code
+that we're going to be working on.
+Creating the EC2 instance for the Jenkins Master using
+the aws_instance resource and we parsing in
+the usual inputs that an EC2 instance requires.
+Such as the AMI to the data resource
+that we created earlier.
+The instance type to the variable instance-type,
+the key name is being parsed via the key pair resource that
+we created earlier.
+We're enabling public IP address against this instance so
+that we can test connectivity to it via SSH.
+We're then attaching a subnet ID
+and security group to it that we also created earlier
+in the network set up part of this course.
+We're tagging it with the name jenkins_master_tf
+and this is important because later on,
+we'll be using Ansible dynamic inventory for AWS,
+for Ansible to find this instance using the tag name that we
+have given here so this is important.
+We're also making this instance dependent on the main route
+table association for the VPC,
+so that it is only spun up after the creation of the main
+route table so that it can communicate with the other
+instances in our deployment.
+Now let's move on to creating the resource
+for the Jenkins Worker.
+We'll give ourselves some space
+and that's the chunk of code for creating
+the Jenkins Worker resources.
+The only difference from the previous resource is that
+we are creating this instance
+in the region worker as evidenced by the provider parameter,
+and also requesting a count parameter to this resource,
+which is a universal parameter across all from resources and
+helps to create multiple resources
+via one resource block in Terraform.
+We're parsing in the AMI, instance type, key name,
+public IP, security group,
+and subnet IDs the same way we did with the EC2 instance
+for the Jenkins Master and note here that we are
+also tagging it the same way we did with the Jenkins Master.
+The only difference being that because we're using the count
+parameter and it may spin up multiple resources,
+we want to provide a distinct name to each spun up resource.
+The count parameter provides an inbuilt value known as
+countered index, which increments when the count
+is incremented and we are parsing it down
+into the joint function, which basically can get in it,
+all the values parsed in this list with the separate,
+which we are defining as the first argument.
+So for example, the first iteration of this resource block
+would produce account index of 0.
+And because we don't want our instance tag to start off with
+0, we actually adding a one to the count index.
+The first iteration of this resource block would produce the
+name jenkins_worker_tf_1 and so on and so forth.
+And just like with the Jenkins Master,
+we are also making this Jenkins Worker dependent
+on its regional VPC route table, so that it is only
+set up once the communication with the Jenkins Master
+is up and running.
+We're also making this dependent on the AWS instance of
+Jenkins Master itself because the integration between the
+Jenkins Worker and then Jenkins Master requires that the
+Jenkins Master be set up before the Jenkins Worker
+is set up therefore, we're making sure that this instance
+is only this only spun up after the instance
+Jenkins Master is set up.
+Now let's save and quit out of here and work on adding the
+variables that we have defined in this resources,
+such as workers-count and instance-state
+in the variables.tf file.
+As we saw that we created a couple of variables for the
+instance type and the count of Jenkins Worker nodes,
+we'll now need to create those actual variables so that they
+can be referenced in the instances.tf file.
+So let's give ourselves some space,
+and based on the code for creating the required variables.
+Now remember that we created the workers-count variable
+for determining how many Jenkins Workers would be created.
+The type of the variable is number,
+and the default value for this variable
+we have set to one, we can increase it to whatever value we
+want, and we're also creating an instance-type variable,
+which is of type string and the default value
+for this would be t3.micro.
+So let's save and quit this because we do need to track
+the IP addresses to make sure
+that we can SSH into these instances.
+We'll need a way to somehow output those IP addresses
+so that we can have a look at them.
+The way to do that in Terraform is using the outputs block
+in the Terraform code, so let's go ahead and see
+how we'll do that.
+Let's clear the screen and create a file called outputs.tf.
+We'll first be copying over the output block for showing
+the public IP address of our Jenkins Master node.
+And you notice the way the output block works is
+the actual keyword output that you can
+parse in any arbitrary label for the output,
+which is going to be shown next to the actual value
+of the output, and finally,
+you parse in the only required parameter
+inside the output block,
+which is the value parameter and the value that you're
+parsing it as the value of public IP for the Jenkins Master
+resource in the instances.tf file.
+Now let's do the same thing for the Jenkins Worker nodes
+they will be spinning up,
+and this output block we're parsing in a map to the value.
+In Terraform, map values are presented by curly braces
+as you're seeing here and lists
+are represented by square brackets.
+In this case, we're parsing a map to the value parameter,
+which has been built out using a new construct,
+which was introduced in version 12 of Terraform,
+the for loop, it definitely makes life easy
+for looping over a list of resources.
+Remember the views that count parameter
+in our Jenkins Worker node resource,
+which would produce a list of Jenkins Worker resources,
+or with the four loop, we'll iterate.
+This for loop works like the for loop in an earlier
+programming language and outputs
+a specific value for each resource in the list
+it iterates over, which in our case
+is the public IP of this instance.
+So now that we're done putting in the output blocks
+for our resources, we'll save and quit
+and get down to deploying the code.
+So let's clear the screen and run a quick Terraform format.
+Always good to make sure that the code is consistent and
+beautiful looking, it looks like it formatted
+the variables.tf file and then we'll run Terraform validate
+to make sure we didn't introduce any errors to the code.
+Everything looks set,
+let's clear the screen and run a Terraform plan to see the
+execution plan for this deployment.
+And we'll see that our resource count has increased to 22
+from the previous 20 in the earlier lesson,
+because we were spending up 2 EC2 instances,
+a Jenkins Main node and a Jenkins Worker node.
+So let's clear the screen and finally do a Terraform Apply.
+I'm also going to add a Unix command
+for tracking how much time a command takes to execute.
+This is just a rough estimate of how long Terraform Apply
+is going to take.
+So the command for that would be just
+to append that time command.
+So the command for that would be do append time command
+just before the Terraform Apply.
+So I'll hit Enter.
+I'll give Terraform the permission to go ahead and deploy
+the actual infrastructure.
+And as it is going to take some time to deploy all this
+resources, I'll pause the video and come back
+when the resources have been deployed,
+and we're back in business.
+Terraform Apply is completed,
+and it has taken us about 56 seconds,
+which is unusually fast.
+So don't be worried if it takes you more than a couple of
+minutes to spin up all of this infrastructure.
+You'll notice that we're getting outputs
+as defined in output.tf.
+The first one is for Jenkins-Main-Node-Public-IP.
+And the second one is a map of Jenkins-Worker-Public-IPs.
+Remember that we set the value to be a map.
+And if we had spun up more than one Jenkins Worker,
+we would have received more key value pairs in this map for
+the public IP of those instances.
+Now let's clear the screen and verify that we can connect to
+the public IPs of these instances using the EC2 key pairs
+that we deployed.
+So the first IP address is for the Jenkins-Main-Node.
+So we're going to connect to the Jenkins-Main-Node
+as EC2 user, which is the default user
+for which the public was added into the instance.
+I'll enter yes, and we've been able to log into
+the instance without using any password
+or providing any additional private keys.
+So let's exit out of this instance and now try to connect to
+the public IP of our worker instance.
+Again, the command ssh ec2-user,
+which is the default user for which the key is added.
+Hit Enter, and enter yes.
+And again, we're able to log into the shell
+of the Jenkins Worker and you can tell by the private IP
+address that this is the Jenkins Worker.
+Let's exit out of this and clear the screen.
+So we've been able to spin up 2 EC2 instances in us-east-1
+and us-west-2 respectively,
+and we've been able to ensure that we can connect to this
+instances with the EC2 key pairs embedded in them,
+which we created in the earlier lesson.
+Now, be sure to go ahead and destroy the infrastructure
+if you're done working on it for the day.
+And we are all set, thank you for going through this lesson.
+Now, if you've got time, join me in the next lesson.

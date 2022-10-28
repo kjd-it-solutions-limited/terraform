@@ -1,0 +1,259 @@
+How's it going, Cloud Gurus?
+Welcome to this lesson.
+In this lesson, we are going to be learning about
+building playbooks for our Jenkins Workers setup.
+So let's dive right in.
+We'll first generate an SSH key-pair
+for the remote Jenkins Worker,
+to its own authorized_keys file,
+which will allow it to SSH locally.
+Next up, we'll copy over the XML_config
+for integrating Jenkins Worker with a Jenkins Master.
+This file will substitute Jinja Template variables
+to customize it to the requirements of our Jenkins Worker.
+We will be looking at building these Jinja Templates
+in the next lesson.
+We'll then read the private SSH key from the SSH key-pair
+that we generated in the earlier play.
+This private key will be read into
+an Ansible variable in the playbook,
+and passed on to another task,
+which will substitute it into a Jinja Template
+in place of a Jinja Template variable.
+Again, we'll learn all about and build Jinja Templates
+in the next lesson, so stick around.
+Next, we'll install all the required dependencies
+for the Jenkins Worker using the yum module.
+We'll then download the Jenkins API binary
+from the Jenkins Master IP address.
+This Jenkins API binary is what we'll be using
+to connect to the Jenkins server on the Jenkins Master,
+and issuing all the necessary commands for creating
+Jenkins Worker credentials,
+and finally, integrating it with the Jenkins Master.
+We'll also be copying over the file
+which contains the credentials
+for connecting to the Jenkins server,
+which will allow us to access the GUI
+of the Jenkins application,
+and will be used by the Jenkins Worker
+for issuing API calls to the Jenkins server.
+And finally, we'll be using the Jenkins API binary
+to create credentials for the Worker on the Jenkins Master,
+and integrate itself as a Jenkins Worker.
+So let's log into our Terraform and Ansible controller node,
+and figure this out.
+I've logged in to the Ansible controller node,
+on which we have been writing all of our Terraform code,
+as well as our Ansible playbooks.
+So we'll cd into the Ansible templates directory.
+And so far in this directory,
+we've got a couple of sample files
+which we used in an earlier lesson.
+And we've already created
+the playbook for the Jenkins Master.
+So let's go ahead with creating the playbook
+for our Jenkins Worker.
+We'll give it the name of install_jenkins_worker.yaml.
+We'll first be pasting in
+a common set of configurations for the playbook.
+These configurations basically let the playbook know
+which host it's going to run against,
+and how it's going to connect to the target nodes.
+So we're passing in the host
+via the command line argument of passed_in_hosts.
+This will be passed in via the EC2 dynamic inventory
+provided by Ansible.
+We're letting the playbook know
+to become the ec2-user to connect to the target node,
+because that's the one we set up the EC2 key pair against,
+and we'll allow password-less SSH.
+We're also letting it know to become the root user
+for executing this play,
+as some of these plays require elevated privileges.
+So let's go ahead and start building the plays in this task.
+So our first couple of plays
+will actually be generating an SSH key-pair
+and adding the public key to the authorized keys
+of the Jenkins Worker itself,
+which will allow password-less SSH locally
+for the Jenkins Worker.
+In the first play,
+we're using the openssh_keypair module
+to generate a key-pair,
+which will have a private and a public key.
+We're letting it know the path
+for creating the public key-pair,
+the type and size of the keys,
+as well as the owner of the keys.
+In the next play,
+we're using the shell command to concatenate the public key
+generated in the previous play
+into the authorized_keys file,
+and normalizing its access permission
+in case it got changed.
+Next up,
+we'll be copying over the Jenkins Worker XML config file
+for integrating with the Jenkins Master,
+as a Jenkins Worker.
+In this play,
+we're using the template module,
+which is specially used for copying over a Jinja Template,
+something we'll learn about in the next lesson.
+And it's substituting the IPv4 variable
+inside the Jinja Template as it is copied over.
+Also note the ansible_default_ipv4.address variable,
+which is an Ansible internal variable
+and populated by Ansible as a metadata of the system
+on which it is executing.
+In our case, this variable will be returning the IP address
+of the Jenkins Worker node,
+and assigning it to the IPv4 variable.
+Let's give ourselves some space,
+and copy over the next couple of plays.
+In the first play,
+we're using the slurp module to read in
+the contents of the private key generated earlier
+as a base 64 encoded blob,
+and we're then registering the read-in data
+to a variable using the register parameter,
+and setting that variable name to pkey.
+This play is using the template module
+to copy over a Jinja Template,
+which will be substituted by these variables.
+The first variable is actually decoding the pkey variable,
+which was read in from the previous play,
+and being decoded back into the normal string
+and passed to the Jinja Template as priv_key,
+as well as the IPv4 variable.
+You will also notice that the raw templates for Jinja
+have the .j2 extension at the end,
+and they reside on the Ansible controller,
+and are copied over from there as well.
+As we copy them down,
+these values are substituted in them
+and then the file is copied over to the destination
+on the remote node.
+And we've also changed the name of the file to creds.xml.
+In the next play,
+we're using the yum module,
+and using the package variable defined in this play
+to iterate over a list of packages to install.
+So yum is going to go through
+the list of values inside the package variable
+and install all of these packages,
+which are a requirement for the Jenkins Worker.
+In the next play,
+we'll actually be downloading the jenkins-cli binary
+from the Jenkins Master.
+You'll notice that in this play,
+we're using the get_url module,
+and downloading the Jenkins API binary
+from a URL which is using another variable,
+called master.
+Ansible variables are distinguished by
+the double curly braces around them.
+This master variable actually has been populated
+by a master_ip variable,
+which will be passed through
+the Ansible playbook CLI argument
+through the extra variables flag.
+We're letting the module know
+to download the file to this directory,
+and we're also using the force variable,
+which means that this file will be downloaded
+regardless of whether it already exists or not.
+We're also registering a variable called download.
+We're also using the ignore_errors variable,
+to ignore any errors in fetching the file,
+such as a failed download or a 404 error.
+And we are also using the until parameter
+to keep trying to run this play
+until we get the download status of 200 from HTTP.
+We're telling it to retry this for 5 times,
+with a 5 second delay in between in case something fails.
+In the next play,
+we're copying over the Jenkins auth file,
+which will be used to connect to the Jenkins server,
+and contains the username and password
+for the Jenkins server.
+We're using the copy module,
+and giving it the name of the file as it resides
+on the Ansible controller node,
+and giving it the destination folder to copy the file into,
+as well as setting the owner and the permissions
+on the file as it is copied to the target node,
+which is the Jenkins Worker.
+And finally, in our last couple of plays,
+we'll actually be running the Jenkins API binary command
+using the shell module to actually generate credentials
+for our Jenkins Worker on the Jenkins Master,
+and also integrate it with the Jenkins Master
+using the Jinja Template files
+that we wrote into the Jenkins Worker.
+So the first play is getting our credentials.xml file,
+which was copied over using the Jinja Template,
+and passing it into a command
+which uses the Jenkins CLI binary,
+and the Jenkins authorization file that we copied over,
+as well as the master variable,
+which contains the Jenkins Master's private IP address
+and is passed through the command line
+when the Ansible playbook is invoked.
+In the second play,
+we are piping in the contents of the node.xml file,
+which actually integrates the Jenkins Worker
+with the Jenkins Master.
+We're again passing over the path to the Jenkins auth file,
+which was copied over on the Jenkins Worker node,
+and passing the URL to the Jenkins Master on port 8080,
+which is where it runs,
+and issuing the create node command.
+So this completes our playbook for the Jenkins Worker.
+We have seen a fair amount of automation,
+and seen how variables can be chained
+between 2 plays to offer flexibility
+when writing Ansible playbooks.
+Now let's save and quit out of this file.
+Let's clear the screen.
+We won't be running this Ansible playbook yet.
+That part, we reserve for the final lesson,
+where we'll be running the Terraform apply as a whole,
+for the whole project.
+But for right now, we'll be running the Ansible playbook's
+syntax check command on this playbook,
+to verify that this is syntactically correct.
+So we'll go ahead and execute this command.
+And because this playbook expects an argument
+containing the name of the host
+against which it's going to run,
+and those hosts don't exist for right now,
+so we're going to pass it a dummy variable called localhost,
+so that we can just verify that the syntax of this playbook
+is correct.
+We'll be using the -e flag to pass in the dummy value
+for the pass_int_host variable,
+which the playbook expects.
+And finally, we'll be giving it the name of the playbook.
+It looks like we made a little typo.
+The command should be ansible-playbook,
+and not ansible_playbook.
+So let's correct that.
+And hit Enter again.
+We do see warnings,
+but that's only because we didn't pass any hosts
+to this playbook explicitly.
+However, the fact that we're seeing the playbook name
+at the end means that this playbook has been verified
+for syntax check.
+And for further assurance,
+you can also look at the return code
+of the syntax check command that we executed above.
+If the return code is 0,
+it means that the syntax check has passed successfully,
+and that our playbook is verified
+to be correct syntactically.
+Thank you for following along and going through this lesson.
+Now, if you've got time, join me in the next lesson,
+where we'll be building and learning about Jinja Templates
+that we referenced in this playbook that we just created.

@@ -1,0 +1,316 @@
+Hello folks, in this lesson,
+we'll be creating an ALB,
+which stands for Application Load Balancer.
+And then we'll be routing traffic
+to an EC2 application node,
+which in this scenario would be running
+a sample Apache web server
+so that we can show you the concept
+of deploying an EC2 instance behind
+an application load balancer via Terraform.
+In the later section of the course,
+we'll actually be using Ansible Playbooks
+to customize the EC2 application nodes,
+to run the Jenkins application.
+So this is our setup so far,
+we have created VPC, subnet, routing tables,
+internet gateways, peering connections.
+And of course our EC2 instances,
+which we'll be hosting our Jenkins application
+and Jenkins worker application as well.
+So in this lesson will be creating
+an application load balancer,
+which will be sending HTTP requests
+to our sample Apache web server
+running on an EC2 instance.
+An application load balancer
+routes traffic to target groups,
+and a target group can be a group of EC2 instances,
+IP addresses, or Lambda functions on which the application
+load balancer would be load balancing
+the requests that it receives.
+The application load balancer
+can also carry our health checks against a web server
+that it is distributing traffic to,
+which in our case we'll be leveraging.
+So without further ado,
+let's head on to our data from controller node
+on which you have been working toward the course
+and start building the application load balancer.
+So I'm logged into the Terraform controller node
+and inside the project folder
+for our Terraform CI/CD project,
+we'll first be creating a file called ALB.TF,
+which represents all the resources,
+which we'll be creating for our application load balancer.
+And our first snippet of code,
+would actually be creating the load balancer itself,
+so let's have a look at it.
+It's using the AWS_lb resource
+and the label that we are giving it as application-lb.
+We creating this in the AWS region master,
+which is us-east-1,
+and we are providing a name to our load balancer.
+We don't want it to be an internal load balancer,
+so we have said that to false
+and the type of the load balancer
+as we discussed earlier is application.
+We're tying down the security group
+that we created in an earlier lesson
+for this load balancer.
+And remember that in Terraform,
+a square bracket represents a list.
+So we could have passed a list of security groups here.
+And then we're passing a list of subnets.
+And this is important here,
+because at the very least the load balancer,
+just by the principle that it works
+can only work across 2 subnets.
+There's no point in running a load balancer
+against one subnet because that won't give you
+any high availability.
+So that's the reason we're passing both the subnets,
+and that's also the reason that we created 2 subnets
+in our Jenkins main node region,
+so that we could set up a load balancer against the subnets.
+And next step will be creating a variable
+for our web server port, the port where our web server
+would be receiving traffic.
+The reason we want to do this is so that we don't have
+to keep going back and changing
+the value for the port every single time
+our obligation changes what port is working on.
+So we'll go ahead and create a variable for that
+and plug in that variable in all the places
+where the port will be passed.
+So we'll save and quit out of this file
+going to variable.rtf, go right to the bottom,
+and add a new variable we'll name it web server-port,
+we'll give it the type of number
+and we'll set it the default value for right now,
+because our sample Apache web server,
+will be routing traffic to we'll be listening on port 80,
+so we'll set that to port 80 here,
+and we'll save and quit.
+We'll also need to go back
+and go over security_groups.tf file,
+which we created in an earlier lesson
+and modify the hard-coded port that we put in there.
+So let's open up that file security_group.tf,
+and we're basically looking for the security group
+called Jenkins-SG.
+This is a security group that we'll be attaching
+to our Jenkins master node.
+And previously, when we initially
+set up the security_group.TF in an earlier lesson,
+we set up an ingress rule,
+which allows traffic from the security group
+of the load balancer.
+And we hard-coded the port to be 8080,
+which doesn't provide us flexibility
+if we want to keep changing the ports.
+So we'll go ahead and change the port here
+to the variable that we just created,
+which would be var.webserver-port.
+And we'll do the same for the to_port,
+and now we're all set, so we'll save and quit
+out of this file as well,
+and now go back to building our application load balancer.
+And now we'll be creating the target group
+that we mentioned as an application load balancer
+requires a target group to be attached to it,
+so that it can route traffic to whatever entity
+is attached to that targeted group.
+So the snippet of code for the target group is as follows.
+We're declaring a resource called AWS_LB_target_Group
+and give it the labelapp-lb-TG,
+again, recreating this in the region,
+us-east-1 or region master because our application load
+balancer is only in us-east-1.
+We're providing it the port,
+which is now set to the variable web server-port.
+The target type for our load balancer
+target group is instance.
+And we're also passing the VPC_ID
+where this instance resides.
+The protocol on which our instance will be routing
+traffic towards our EC2 instances HTTP.
+And then we have a health check block.
+This health check block basically defines
+how the targeted group will be carrying out health checks
+against the EC2 instance.
+This is quite a useful functionality,
+and you can customize the path on which you are carrying out
+the health check, so let's read to the variables
+inside this block.
+We are enabling the health check
+and we are setting the interval
+for health checks to be 10 seconds.
+We are providing it the default path,
+which is the route path of the web server.
+Again, we are passing the port
+on which we want it to carry out the health checks on,
+which is again the same port as the traffic port.
+We are defining the protocol for the health check
+and we're setting the matcher parameter,
+which basically matches the response scored
+returned from the web server on a successful health check.
+And I have set this to be within the range of 200 to 299
+for all successful return goals from the web server
+that will be carrying the health check against.
+And finally, we're providing a data key value
+pair of name and Jenkins target group.
+Next up, will be greeting a listener,
+that will be attaching to our application load balancer.
+So let's give ourselves some space.
+And copy in the code for the listener.
+So for the listener, we are using the AWS_lb_listener
+resource, and we're giving it
+the label of Jenkins-listener-HTTP.
+Again, it's in the us-east-1 region master
+we're tying down what
+application load balancer it is attached to
+using the load balancer_ ARN parameter,
+we're defining what port we want the listener
+to be listening on and the protocol
+that we want it to accept.
+And then we're defining a default_action block,
+which is a mandatory block and has to be defined
+within this resource.
+This block basically decides
+what the listener is going to do
+once it receives traffic on the port 80 with protocol HTTP,
+we're basically forwarding traffic
+to the target group that we created earlier
+using the ID of the target group.
+I know this can get a bit complex,
+but hang on with me because we're almost done.
+And this is going to be so much fun
+when we actually execute the deployment command
+and see everything work like magic.
+So we'll be dropping down the next resource,
+which will be the target group attachment.
+And this is how we'll be attaching our target group to our
+Jenkins master node.
+So we'll give us some space and copying the code for that.
+So we're using the AWS_lb target group attachment resource,
+giving it the label Jenkins-master-attach.
+This requires the target_group_ARN,
+which is the ARN of the target group
+that we created a little bit earlier in this file.
+We're passing in the ID of the Jenkins master instance,
+that we created early in the course.
+And finally we are providing it the port
+that we want the traffic to be routed on
+via the target group.
+And the port is defined through the variable
+that we just created now,
+and with this we are actually done
+with defining the code for creating
+the application load balancer.
+So we'll save and quit out of this file,
+we'll clear the screen, to be able to test the web server,
+which comes up after a successful Terraform apply,
+we'll actually need to know the DNS name
+of the load balancer that was created.
+For which reason we'll actually be adding an output
+to the output.tf file
+so that the DNS name of our application load balancer
+is outputted after the Terraform apply is done running.
+So we'll open the outputs.tf file,
+go right to the bottom, and add our new output.
+So, this is simple output,
+we're giving it the label lb DNS name
+and the value that it will be outputting
+will be the DNS name of the ALB
+that we just created in the ALB.TF file.
+And the final thing that we'll need to do is to install
+and start up the Apache web server on the node,
+which is going to be receiving traffic
+from the application load balancer.
+That part is done through the Ansible playbook
+that we created in the previous lesson.
+The playbook is inside the Ansible_templates folder,
+so we'll cd into that folder.
+And the file that we want to modify
+is the Jenkins-master-sample.yml file.
+And we actually have to modify this playbook
+a little to install the Apache web server.
+So we'll change the description to installing Apache,
+we'll change the name of the package to httpd,
+which is the package name for Apache on CentOS,
+and we'll be adding another play over task.
+This play would actually start and enable Apache.
+And for this we'll be using the Ansible module known as
+service, this module requires the name of the service,
+which is Apache, the state of the service,
+which we want it to be started.
+And finally, the enabled status,
+which we want to set to yes.
+So now that we're done setting up the playbook,
+we'll actually go ahead, save and quit,
+and now we're good to go ahead
+and issue all the Terraform commands that we need to.
+So let's clear the screen, run a Terraform format,
+we'll next up run Terraform validate,
+that seems to have gone through fine,
+we'll clear the screen and now run a Terraform plan,
+we actually made the mistake of executing
+the Terraform command inside the Ansible_templates folder.
+And in this folder, there's no Terraform template
+so we'll cd back into the folder
+where the Terraform files are, clear the screen
+and now run Terraform format.
+and we learned a good lesson with this,
+that Terraform format and Terraform validated commands
+won't return any errors if they don't find any Terraform
+files in the folder that we are in
+when we execute this command Terraform format
+seems to help beautify a couple of our files
+we'll run Terraform validate.
+And we are golden, so I'll clear the screen
+and run Terraform plan.
+Our resource count has increased
+and the execution plan looks good,
+so we'll clear the screen and finally run a Terraform apply
+and we'll pass the auto-approve flag
+so that we're not prompted to enter yes.
+And so this will take a little bit of time,
+I'll speed up the video and come back when the Terraform
+apply is done running and as outputted
+the load balancer's DNS name for us to test against.
+And we actually ran into a syntax issue in our playbook.
+So our apply failed, so we'll go back
+and fix that syntax issue,
+and the syntax issue basically
+was a space indentation issue.
+So always make sure that your spaces are indented properly.
+So now this space indentation issue has been fixed.
+So we'll save and quit and run Terraform apply again,
+this might recruit a few resources,
+but from the perspective of deployment,
+it doesn't change anything.
+So we'll hit enter again and wait for this to complete.
+Also notice how we learned about provisioners,
+which our Jenkins-master is using,
+on how, if a provisioner fails,
+the resource that the provisioner failed for
+will be marked as tainted.
+In which case our Jenkins-master was marked as tainted.
+And upon the next apply that we issued,
+the Jenkins-master was destroyed and will be recreated.
+So our Terraform apply has completed successfully,
+and it has outputted the DNS name of our load balancer,
+which is different than our EC2 instance,
+obviously Apache web server is running,
+so we'll copy over the DNS name of the load balancer,
+head over to a browser, enter it in.
+So, you'll notice that were taken into the desk space
+where the Apache web server, our deployment was successful.
+So our load balancer was successfully deployed,
+had a target group to which we attached our EC2 instance,
+and it's working successfully and don't forget to destroy
+all the resources that we created,
+if you're done for the day.
+Now, take a well deserved break.
+And when you get time, join me in the next lesson.

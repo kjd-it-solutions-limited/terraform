@@ -1,0 +1,159 @@
+Hello folks.
+Welcome to the Network Setup Part 1
+where we will be deploying VPCs, internet gateways,
+and subnets for our project.
+But first, a reminder.
+Please don't forget to set up the S3 backend
+and 2 separate AWS providers if you're following along
+in this course.
+How to do that has been shown in the earlier videos
+of this course, so if you are unsure please go back
+and watch those videos.
+Our main layout will bee in 2 regions, us-east-1
+and us-west-2.
+We'll be deploying VPCs in both regions and public subnets,
+two public subnets in us-east-1
+and one public subnet in us-west-2.
+We'll also be creating and attaching internal gateways
+to each VPC.
+So let's dive right into the terraform controller node
+which we have been working on
+and see how to implement all of this.
+So, I'm already logged into our telephone controller node
+where we previously set up all the required software
+and also created the backend,
+as well as the providers required for this project.
+Let's have a quick look at the backend
+and
+also the providers,
+because we will be using those providers now.
+To create the VPC, subnets, and internal gateways,
+let's create a new file called networks.tf
+inside our project folder.
+We'll be first creating the VPC in us-east-1.
+We're using the aws_vpc resource
+and we're labeling it with vpc_master.
+A VPC requires a couple of things to be created.
+The first one is the CIDR block
+which we are giving it as 10.0.0.0/16.
+We're enabling DNS and hostname support within the VPC,
+and we are also giving it the name tag master-vpc-jenkins.
+The thing to note here is that we are also passing in
+the parameter called provider,
+which you may not have seen if you have never used
+multiple providers.
+This parameter can be used to peg a resource
+to a specific provider.
+In our case, if we are to go back to have a look
+at our providers.tf file, we'll notice
+that our provider name follows the convention aws.the alias.
+So if we're to go back to the file now,
+you'll notice that the provider name is aws.region-master,
+which pegs it down to the alias provider,
+which is in us-east-1.
+Let's create the second VPC.
+Again, we are giving it a CIDR block which is different
+because we'll be eventually VPC peering
+between these 2 VPCs.
+And one of the conditions of VPC peering in AWS
+is that they don't have overlapping CIDR ranges.
+We have similar options in the other VPC as well,
+and we're giving it the name tag of worker-vpc-jenkins.
+Now, let's go ahead and create the internet gateways.
+I'll just give ourselves some space to work in.
+So, here we are creating 2 internet gateways
+in separate regions, and notice how we are doing that.
+We are again passing different providers to each resource.
+We are using the aws_internet_gateway resource
+in both cases, and obviously giving it different labels
+so that we can differentiate.
+The naming labels of a resource have to be unique
+in a terraform project.
+We're giving it the region master provider
+for the internet gateway to be created in the us-east-1,
+and the region worker to the other gateway
+so that it's created in the us-west-2.
+We're also tying down the resource name
+for the respective VPC in the VPC ID field
+of the internet gateway resource.
+Now we'll go ahead and create a data source resource
+for fetching all the availability zones within a VPC.
+What this data source does is that it populates
+the list of all the availability zones
+in the label AZs that we have just named here.
+So once we create a subnet,
+we'll be actually passing down an element of the list
+that this data resource creates.
+So here we are creating a subnet.
+The subnet is using the aws_subnet resource,
+and we're passing it the labeled subnet_1
+because this is the first subnet in our us-east-1 region.
+We're again pegging it down to the right provider
+so that it is created in us-east-1.
+And this is where the element function comes in.
+The element function takes the list of availability zones
+populated by the above data sources call
+and picks out the first element in the list
+which starts from the zeroth index.
+Again, we're tying down the VPC to the master VPC
+and we are passing in the CIDR block of the subnet
+to arrange within the CIDR block of the VPC.
+Now, let's create the second subnet.
+We're doing a similar thing in our second subnet
+and the only difference is that we are giving it
+the second element in the list,
+which contains our availability zones.
+Now let's go ahead and create the subnet
+for our us-west-2 region.
+Let's give ourselves some space.
+And this is our final subnet which will be created
+in the us-west-2 region.
+Again, note that we are tying it down
+to the AWS or region-worker provider,
+which will make sure that this resource is created
+in the us-west-2 region.
+We're tying down the VPC ID of the VPC which we created
+in the us-west-2, and we also making sure
+that the CIDR block of the subnet is within the CIDR range
+of the VPC that we created in us-west-2.
+So, let's save and quit all these changes.
+Clean our screen and do a quick terraform format
+to make sure that our code is consistent and beautiful.
+And we seem to have received an error,
+so let's do terraform validate to see where exactly
+the error might be.
+Let's clear the screen
+and issue terraform validate.
+Terraform validate tells me
+that there's a resource block issue
+in the resource vpc_master.
+So let's open up our file and look at that block.
+And at a closer look we notice that we have not closed down
+this block with the final squiggly brace.
+And now everything seems to be fine
+so let's go back and issue another terraform format,
+and this time it seems to have gone through.
+Let's do another terraform validate
+and everything looks good.
+Now let's go ahead and do a terraform plan,
+and then eventually we'll be doing a terraform apply
+to see if everything goes through.
+So it looks like we'll be creating 7 resources.
+We'll be creating the master VPC
+and all the resources that we mentioned here.
+And most of these values will be populated
+after the resources are deployed.
+So let's go ahead, clear the screen
+and do a terraform apply.
+Terraform apply will first prompt us for
+deploying the actual infrastructure
+to which we will say yes,
+and now it's going to actually go ahead
+and create real resources.
+So, it looks like everything worked out well
+and the 7 resources that we wanted
+have been created successfully.
+Thank you for following along in this lesson.
+Join me in the next lesson
+as we set up the subnet associations, route tables,
+and VPC peering for our project.

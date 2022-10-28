@@ -1,0 +1,314 @@
+Hello Cloud Gurus and welcome to this lesson
+on configuring Terraform provisioners
+for configuration management via Ansible.
+Provisioners can be used to run specific actions
+on the local machine
+or on a remote machine in order to prepare infrastructure
+for service via Terraform.
+You can have them run either at creation
+or destruction of a resource.
+If during its run a provisioner fails,
+the resource is marked tainted
+which means it will be recreated
+on the next Terraform apply.
+There's quite a few methods
+to invoke provisioners in Terraform,
+but the ones we'll be focusing on will be local
+and remote provisioners.
+And another thing of note is that provisioners
+run on the same sequence as they appear in the code.
+So creation provisioners will be run
+in sequence on deployment
+and destroy provisioners will be run
+in sequence on destruction.
+Local provisioners run commands
+on Terraform controller node.
+Remote provisioners execute inside remote resources created
+or imported by Terraform, such as EC2 instances.
+Remote provisioners usually requires some form
+of connection credentials to connect
+and execute commands on target nodes,
+such as SSH for Linux and Windows RM for Windows.
+Here's a look at how we would use provisioners
+within a Terraform resource, which in our case,
+is an EC2 instance in this example.
+This is a remote provisioner
+as evident by its label after the keyword provisioner.
+The inline argument allows the user
+to pass a list of commands to be run on destruction
+of the resource
+and notice how the connection block inside the provisioner
+is furnishing SSH details for connecting to the target node.
+The second provisioner is a local provisioner
+and will run the echo command locally
+on the Terraform controller node, which is where you run
+all the Terraform administration commands.
+Now let's head over to the Terraform controller node
+and see the provisioners in action.
+So I'm logged into the Terraform controller node.
+Let's go ahead and create the playbooks
+for our Jenkins Master and Jenkins Worker instances.
+Now these playbooks will just be sample playbooks
+because in this lesson,
+we just want to show you how Ansible playbooks
+can be invoked via Terraform provisioners.
+But later on, we'll be customizing the playbooks
+to install Jenkins and integrate the Jenkins Worker
+with the Jenkins main node.
+So let's go ahead and create a folder
+within our project folder called ansible_templates.
+This folder will house all our Ansible templates
+as well as some configuration files for dynamic inventory.
+So we'll hit enter and cd into the folder.
+Now let's go ahead and create our first sample YAML file
+for Jenkins Master.
+We'll name it jenkins-master-sample.yml
+and let's paste in the playbook for it.
+The playbook basically uses the host argument
+to pass in a variable,
+which is going to pass to the playbook
+what host it should run on.
+Additionally, we're also letting the playbook know
+to use the remote user, EC2-user,
+to connect to the remote instance.
+And we're also letting the playbook know
+to become the root user because the action
+that we want to undertake with this playbook
+is to install a package which requires sudo
+or elevated privileges.
+In our case, we're running one play
+which is using the Ansible YUM module
+and the YUM module requires 2 inputs.
+The first one is the name of the package
+that we want to install
+and the second one is the state that we want it in.
+If it is present,
+it means that the package will be installed.
+If it is absent, the package would actually be removed.
+Now, I will save and quit and create something similar
+for the Jenkins Worker as well.
+We'll name our Jenkins Worker playbook,
+jenkins-worker-sample.yml
+and we'll paste in this playbook as well.
+So as you can see,
+the playbook is pretty much similar
+to what we did with the Jenkins Master.
+We are still passing in the variable,
+which is going to let this playbook know
+to run against specific instances,
+which are being passed via the EC2 dynamic inventory
+by Ansible.
+We're also letting it know to become the root user.
+And the only difference is that we haven't yet installed
+the jq or JSON parser utility.
+So now that we're done with the playbooks,
+let's save and quit.
+We're going to go back one directory
+and edit the ansible.cfg file
+that we placed here right at the start of the course.
+We're going to be modifying it
+to enable the dynamic inventory querying by Ansible of AWS.
+In this file under the default section that you see here,
+we're going to be adding a couple of lines.
+So we've added 3 lines.
+The first line points Ansible configuration
+to the configuration file of the dynamic inventory for AWS
+provided by Ansible.
+This configuration file will let Ansible know
+which regions to query
+and how to aggregate the parameters returned by the querying
+of AWS instances so that we can pass the host names
+within Ansible playbooks.
+And the second line is actually enabling the plugin itself,
+the plugin which will help with querying
+and keeping the dynamic inventory of AWS.
+The third line basically silences warning
+that Ansible might show regarding the Python interpreter
+that it sees on remote instances.
+So we'll save and quit out of here as well.
+And next up, we'll actually be creating
+the configuration file for dynamic inventory
+that we just mentioned in the Ansible configuration file.
+So we'll head back into the ansible_templates.
+And in here, we'll actually create another directory
+to keep our dynamic inventory configuration file
+separate from the ansible playbooks,
+and we'll call this inventory_aws.
+We'll create the directory and cd into it.
+Let's clear the screen and I'll be using the wget command
+to actually download the file from the git repo.
+The URL to this file will also be provided
+under the resources section of this lesson.
+So we've downloaded the file tf_aws_EC2.yml
+and we'll be focusing on the name here for a moment.
+The reason we are focusing on the name
+is that this file expects the suffix of the file,
+that means the string in which the file is ending
+to be always _aws_EC2.yml.
+This has to be the naming convention
+for the configuration file for dynamic querying of AWS.
+Otherwise, Ansible will not pick it up as an inventory file.
+Now let's open up the file and have a quick peek at it.
+So this file is using the plugin that we just enabled.
+We are enabling the regions in which Ansible can go
+and query for the inventory.
+In my case, I've just enabled 2 regions
+because we'll be working only in 2 regions.
+However, feel free to enable as many or as less regions
+as you prefer.
+We're also enabling the keyed groups,
+which is where the magic of Ansible dynamic inventory
+for AWS occurs.
+This is the part where we define
+how the Ansible dynamic inventory will create variables
+for us to pass in as hostnames to the Ansible playbooks.
+So we're going to be seeing later on one of the variables,
+which is going to be used to pick up the instances
+that are from queries and then pass them as hostnames
+within the Ansible playbook invocations.
+So let's save and quit,
+and before we actually dive into the instances.tf file
+to add provisioners
+which are going to invoke Ansible playbooks,
+we're actually going to need
+to install the Boto3 Python SDK for AWS,
+which is what the Ansible dynamic inventory plugin requires.
+So we'll clear the screen and issue the command pip3,
+install Boto3, half and half and user.
+We'll hit enter and wait for it to install.
+So the Boto3 module for Python has successfully installed,
+which means that our plugin convert now.
+So we'll clear the screen and now head back to the directory
+where the instances.tf file is,
+that is 2 directories out from the directory
+that we were in.
+We'll vim into the instances.tf file
+and head over to the resource block
+for the Jenkins Master instance,
+which in our case is this block.
+So we'll give ourselves some space
+under the depends_on parameter and paste in our provisioner.
+So as evident by the label for this provisioner,
+this is a local provisioner
+which means it's going to be executing
+on the Terraform controller node.
+Now notice that we're passing in a delimiter.
+The reason for that is so that we can have new lines
+in our command.
+Otherwise, we would have to pass all of this command
+as a single string,
+which might not have been as aesthetically pleasing,
+so we just did it this way.
+However, just know you can also pass this
+as a complete single string.
+The first executed command under the command parameter
+is basically having the resource wait
+until the actual instance
+which is created through this resource block
+gets into the okay status,
+which means that the next Ansible playbook command
+would then be able to connect to it via SSH
+and run a playbook against it.
+Now notice that we are passing an extra variable,
+we're using the extra vars flag,
+which basically is passing this variable to the playbook
+and the value that we assign to this playbook
+is being generated in 2 parts.
+The first part is a static string, tag_name_
+and the last part is basically an object self,
+which is only available inside this provisioner
+and maps to the properties of this resource.
+So all the properties for this resource
+are also available with the self object
+and can be invoked like so.
+The reason we do this is to avoid cyclical dependencies
+as tying down the actual name of the resource itself
+in the provisioner might cause those.
+So this variable self.tags.name
+would actually attend the name tag
+which is assigned to this resource,
+which would end up giving us the variable
+called tag_name_jenkins_master_tf,
+and this is how the EC2 inventory
+actually maps the instance to the playbook.
+So when the playbook actually sees the name
+that we just interpolated,
+it knows that it needs to get the IP address
+of the instance which is tagged
+with the name jenkins_master_tf.
+The EC2 dynamic inventory by Ansible is quite handy.
+It avoids us having to create static inventory files
+and track them as that can get really messy,
+so this really makes our life easy.
+Now let's go ahead and create the provisioner
+for our Jenkins worker,
+for which we'll go down to the block
+of the Jenkins worker resource,
+and we'll give ourselves some space
+under the depends_on parameter
+and paste in the provisioner for the worker.
+And apart from the variables
+that we are passing inside the command
+which pertain to the region of the Jenkins worker,
+this command is virtually identical
+to the provisioner of the Jenkins master.
+We're passing in the profile for the AWS command
+where the profile parameter that we set in variables.tf.
+We're passing in the region, var.region-worker variable,
+and we're passing the instance ID using the self object.
+Again, just a reminder that the self object
+maps to the resource in which it is invoked,
+which means that all the attributes of the resource
+are available to this object as well.
+Now that we have settle the EC2 dynamic inventory,
+installed the python AWS SDK,
+and modified our EC2 instance resource block
+to add provisioners to them.
+Let's save and quit and give this a go.
+So we'll clear the screen
+and run a quick Terraform format to beautify our code.
+We'll also run a Terraform validate.
+It looks like everything is good.
+So we'll clear the screen and quickly run a Terraform plan.
+This looks good and we're going to be creating 22 resources.
+So we'll clear the screen and finally run a Terraform apply.
+We'll enter yes,
+and just because this might take a little bit of time,
+we'll speed up the video and come back
+when this is all done.
+So I just wanted to pause the video to show you the command
+that Terraform provisioner is invoking.
+So notice how the self object has been subsidiary
+with the tag name of the instance
+which was jenkins_master_tf.
+And this name is then passed as a variable to the playbook
+and the magic of EC2 dynamic inventory
+converts this into the IP of the EC2 instance in question
+which has the tag jenkins_master_tf.
+And now, you'll notice that Terraform provisioner
+is running the part where the Ansible playbook
+is executing against the EC2 instance.
+So all of this output is from the Ansible playbook,
+and it looks like we are all done
+with running the Terraform apply,
+and it has successfully run the provisioners
+against our resources.
+If you want, you can go ahead and SSH into this instances
+using the EC2 user to verify the package is being installed.
+So we can quickly do that for the Jenkins worker.
+We'll log into it using the EC2 user,
+since that's the user we set up for the password list SSH.
+And because we installed the JQ utility,
+let's just quickly enter the command
+and we see the help page for the command
+which means that the utility was successfully installed
+via the Ansible playbook.
+So we'll exit out.
+So in a nutshell,
+we basically used EC2 dynamic inventory for AWS
+and Terraform provisioners to bootstrap EC2 instances.
+Thank you for following along and going through this lesson.
+And don't forget to destroy the infrastructure
+using Terraform destroy
+if you're done working on the project for the day,
+and if you've got time, join me in the next lesson.
